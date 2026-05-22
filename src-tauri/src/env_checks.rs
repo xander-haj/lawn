@@ -1,6 +1,6 @@
 // This module performs read-only setup checks and produces OS-specific guidance.
 use crate::models::{EnvironmentCheck, EnvironmentReport};
-use crate::paths::{display_path, resolve_scan_root, venv_python, Z3R_REPO_URL};
+use crate::paths::{display_path, resolve_scan_root, venv_python};
 use std::env;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -15,6 +15,7 @@ pub fn check_environment(
     let project = project_path.map(PathBuf::from);
     let mut checks = vec![
         check_command(
+            "git",
             "git",
             "Git",
             &["--version"],
@@ -35,7 +36,7 @@ pub fn check_environment(
         os: env::consts::OS.to_string(),
         parent_path: display_path(&parent),
         checks,
-        next_steps: setup_steps(project.as_deref()),
+        next_steps: Vec::new(),
     })
 }
 
@@ -52,6 +53,7 @@ fn check_python() -> EnvironmentCheck {
 
     for (program, args) in commands {
         let check = check_command(
+            "python",
             program,
             "Python",
             &args,
@@ -129,6 +131,7 @@ fn check_python_dependencies(project_path: Option<&Path>) -> EnvironmentCheck {
     };
 
     check_command(
+        "python-dependencies",
         &display_path(&python),
         "Python dependencies",
         &["-c", "import PIL, yaml"],
@@ -140,12 +143,14 @@ fn check_python_dependencies(project_path: Option<&Path>) -> EnvironmentCheck {
 fn check_windows_build_tools(project_path: Option<&Path>) -> Vec<EnvironmentCheck> {
     let mut checks = vec![
         check_command(
+            "msbuild",
             "where",
             "MSBuild",
             &["msbuild"],
             "Install Build Tools for Visual Studio and select the Desktop development with C++ workload.",
         ),
         check_command(
+            "powershell",
             "where",
             "PowerShell",
             &["powershell"],
@@ -183,11 +188,13 @@ fn check_unix_build_tools() -> Vec<EnvironmentCheck> {
     vec![
         check_command(
             "make",
+            "make",
             "Make",
             &["--version"],
             "Required to compile Z3R on macOS and Linux.",
         ),
         check_command(
+            "sdl2-dev",
             "sdl2-config",
             "SDL2 development files",
             &["--version"],
@@ -198,6 +205,7 @@ fn check_unix_build_tools() -> Vec<EnvironmentCheck> {
 
 // Runs a harmless version or lookup command and translates the result into a UI check row.
 fn check_command(
+    id: &str,
     program: &str,
     label: &str,
     args: &[&str],
@@ -207,20 +215,16 @@ fn check_command(
         Ok(output) if output.status.success() => {
             let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
             let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-            ok_check(
-                program,
-                label,
-                if stdout.is_empty() { &stderr } else { &stdout },
-            )
+            ok_check(id, label, if stdout.is_empty() { &stderr } else { &stdout })
         }
         Ok(output) => EnvironmentCheck {
-            id: program.to_string(),
+            id: id.to_string(),
             label: label.to_string(),
             state: "missing".to_string(),
             detail: String::from_utf8_lossy(&output.stderr).trim().to_string(),
         },
         Err(_) => EnvironmentCheck {
-            id: program.to_string(),
+            id: id.to_string(),
             label: label.to_string(),
             state: "missing".to_string(),
             detail: missing_detail.to_string(),
@@ -250,37 +254,4 @@ fn file_check(id: &str, label: &str, path: &Path, missing_detail: &str) -> Envir
             detail: missing_detail.to_string(),
         }
     }
-}
-
-// Produces human-readable setup steps that match the detected platform and selected project.
-fn setup_steps(project_path: Option<&Path>) -> Vec<String> {
-    let mut steps = vec![
-        format!("Clone with: git clone --recursive {Z3R_REPO_URL}"),
-        "Place your legally obtained US ROM as zelda3.sfc in the Z3R folder.".to_string(),
-        "Create a venv inside Z3R before installing Python requirements.".to_string(),
-    ];
-
-    if cfg!(target_os = "windows") {
-        steps.push("Recommended Windows routes: Visual Studio Desktop development with C++ or the TCC package route.".to_string());
-        steps.push(
-            "After venv activation, run: python -m pip install -r requirements.txt".to_string(),
-        );
-    } else {
-        steps.push(
-            "After venv activation, run: python -m pip install -r requirements.txt".to_string(),
-        );
-        steps.push(
-            "Install SDL2 development files with your OS package manager before building."
-                .to_string(),
-        );
-    }
-
-    if let Some(project_path) = project_path {
-        steps.push(format!(
-            "Current selected project: {}",
-            display_path(project_path)
-        ));
-    }
-
-    steps
 }

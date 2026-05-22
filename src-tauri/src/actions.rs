@@ -6,9 +6,6 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use tauri_plugin_dialog::DialogExt;
 
-const MSBUILD_HELP_URL: &str =
-    "https://learn.microsoft.com/en-us/visualstudio/msbuild/msbuild?view=visualstudio";
-
 // Launches the selected game executable with its own folder as the working directory.
 #[tauri::command]
 pub fn launch_game(executable_path: String) -> Result<ActionResult, String> {
@@ -35,11 +32,19 @@ pub fn launch_game(executable_path: String) -> Result<ActionResult, String> {
 
 // Opens a native folder picker so users can choose where scanning and cloning happen.
 #[tauri::command]
-pub fn choose_scan_root(app: tauri::AppHandle) -> Result<Option<String>, String> {
-    let folder = app
-        .dialog()
-        .file()
-        .blocking_pick_folder()
+pub async fn choose_scan_root(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    let (sender, mut receiver) = tauri::async_runtime::channel(1);
+
+    app.dialog().file().pick_folder(move |folder| {
+        tauri::async_runtime::spawn(async move {
+            let _ = sender.send(folder).await;
+        });
+    });
+
+    let folder = receiver
+        .recv()
+        .await
+        .ok_or_else(|| "Folder picker closed before returning a result.".to_string())?
         .map(|path| {
             path.into_path()
                 .map_err(|error| format!("Could not read selected folder path: {error}"))
@@ -48,19 +53,6 @@ pub fn choose_scan_root(app: tauri::AppHandle) -> Result<Option<String>, String>
         .transpose()?;
 
     Ok(folder)
-}
-
-// Opens Microsoft's MSBuild guidance so Windows users can install the required build tools manually.
-#[tauri::command]
-pub fn open_msbuild_help() -> Result<ActionResult, String> {
-    open_url(MSBUILD_HELP_URL)?;
-
-    Ok(ActionResult {
-        ok: true,
-        message: "Opened Microsoft MSBuild installation guidance.".to_string(),
-        stdout: String::new(),
-        stderr: String::new(),
-    })
 }
 
 // Clones Xander's Z3R repository into the active scan root when the user requests it.
@@ -81,6 +73,32 @@ pub fn clone_project(scan_root: Option<String>) -> Result<ActionResult, String> 
         &["clone", "--recursive", Z3R_REPO_URL, "Z3R"],
         &parent,
         "Clone complete.",
+    )
+}
+
+// Clones a user-provided GitHub repository URL into the active scan root with fixed git arguments.
+#[tauri::command]
+pub fn clone_custom_project(
+    repo_url: String,
+    scan_root: Option<String>,
+) -> Result<ActionResult, String> {
+    let parent = resolve_scan_root(scan_root)?;
+    let normalized_url = normalize_github_url(&repo_url)?;
+    let folder_name = github_repo_folder_name(&normalized_url)?;
+    let target = parent.join(&folder_name);
+
+    if target.exists() {
+        return Err(format!(
+            "Target folder already exists: {}",
+            display_path(&target)
+        ));
+    }
+
+    run_command(
+        "git",
+        &["clone", "--recursive", &normalized_url, &folder_name],
+        &parent,
+        "Custom clone complete.",
     )
 }
 
@@ -189,30 +207,57 @@ fn run_tcc_build(project: &Path) -> Result<ActionResult, String> {
     Ok(result)
 }
 
-// Opens a fixed trusted URL with the operating system's default browser.
-fn open_url(url: &str) -> Result<(), String> {
-    let mut command = if cfg!(target_os = "windows") {
-        let mut command = Command::new("cmd");
-        command.args(["/C", "start", "", url]);
-        command
-    } else if cfg!(target_os = "macos") {
-        let mut command = Command::new("open");
-        command.arg(url);
-        command
-    } else {
-        let mut command = Command::new("xdg-open");
-        command.arg(url);
-        command
-    };
+// Accepts only plain GitHub HTTPS repository URLs so text input cannot become shell syntax.
+fn normalize_github_url(repo_url: &str) -> Result<String, String> {
+    let trimmed = repo_url.trim();
 
-    command
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .map_err(|error| format!("Could not open help page: {error}"))?;
+    if trimmed.starts_with("git clone") {
+        return Err("Paste only the GitHub repository URL, not a git clone command.".to_string());
+    }
 
-    Ok(())
+    if trimmed.contains(char::is_whitespace) {
+        return Err("The GitHub URL cannot contain spaces.".to_string());
+    }
+
+    if !trimmed.starts_with("https://github.com/") {
+        return Err("Enter a GitHub URL that starts with https://github.com/.".to_string());
+    }
+
+    Ok(trimmed.trim_end_matches('/').to_string())
+}
+
+// Derives the destination folder from an owner/repo GitHub URL after URL validation succeeds.
+fn github_repo_folder_name(repo_url: &str) -> Result<String, String> {
+    let repo_part = repo_url
+        .trim_start_matches("https://github.com/")
+        .split(['?', '#'])
+        .next()
+        .unwrap_or_default();
+    let mut parts = repo_part.split('/');
+    let owner = parts.next().unwrap_or_default();
+    let repo = parts
+        .next()
+        .unwrap_or_default()
+        .trim_end_matches(".git")
+        .to_string();
+
+    if owner.is_empty() || repo.is_empty() || parts.next().is_some() {
+        return Err(
+            "Enter a GitHub repository URL like https://github.com/owner/repo.".to_string(),
+        );
+    }
+
+    if !repo
+        .chars()
+        .all(|character| character.is_ascii_alphanumeric() || matches!(character, '.' | '_' | '-'))
+    {
+        return Err(
+            "The repository name contains characters this launcher cannot use for a folder."
+                .to_string(),
+        );
+    }
+
+    Ok(repo)
 }
 
 // Executes a fixed command in a fixed working directory and captures output for the UI log.
