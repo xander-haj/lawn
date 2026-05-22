@@ -1,9 +1,5 @@
 # Disables macOS AppleDouble sidecar files during Cargo/Tauri build copy operations.
-# This project currently lives on an external volume where `._*.toml` metadata files can appear,
-# and Tauri's permission scanner treats those sidecars as invalid UTF-8 TOML input.
-[build]
-target-dir = "/private/tmp/z3r-launcher-target"
-
+# Keep target-dir out of source control so GitHub Actions can use each runner's native target path.
 [env]
 COPYFILE_DISABLE = "1"
 COPY_EXTENDED_ATTRIBUTES_DISABLE = "1"
