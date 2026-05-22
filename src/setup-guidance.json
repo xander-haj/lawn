@@ -1,0 +1,27 @@
+{
+  "macos": [
+    "Place your legally obtained US ROM as zelda3.sfc in the Z3R folder.",
+    "Press the Create venv button.",
+    "After venv activation, press the install dependencies button",
+    "After dependencies are installed, select Extract assets button",
+    "Install SDL2 development files with your OS package manager before building.",
+    "Press the Build Selected Button"
+  ],
+  "windows": [
+    "Place your legally obtained US ROM as zelda3.sfc in the Z3R folder.",
+    "Make sure MSBuild is installed, or use the Manual install button beside any missing dependency check.",
+    "Press the Create venv button.",
+    "After venv activation, press the install dependencies button",
+    "After dependencies are installed, select Extract assets button",
+    "Use Visual Studio Build Tools with Desktop development with C++ or the TCC package route before building.",
+    "Press the Build Selected Button"
+  ],
+  "linux": [
+    "Place your legally obtained US ROM as zelda3.sfc in the Z3R folder.",
+    "Press the Create venv button.",
+    "After venv activation, press the install dependencies button",
+    "After dependencies are installed, select Extract assets button",
+    "Install SDL2 development files with your OS package manager before building.",
+    "Press the Build Selected Button"
+  ]
+}

@@ -1,23 +1,49 @@
 // This frontend keeps UI state and delegates filesystem/process work to scoped Rust commands.
+import { connectCustomCloneDialog } from "./custom-clone.js";
+import {
+  getManualInstallGuide,
+  hasManualInstallGuide,
+  loadManualInstallGuides,
+  renderManualInstallGuide,
+} from "./manual-guides.js";
+
 const { invoke } = window.__TAURI__.core;
 
 const state = {
   candidates: [],
   selectedPath: null,
   scanRoot: null,
+  activeView: "builds",
+  environmentOs: "macos",
+  setupGuidance: null,
+  manualInstallGuides: null,
 };
 
 const elements = {
+  viewPanels: document.querySelectorAll(".view-panel"),
   parentPath: document.querySelector("#parentPath"),
   projectList: document.querySelector("#projectList"),
   checkList: document.querySelector("#checkList"),
   stepList: document.querySelector("#stepList"),
+  manualGuideTitle: document.querySelector("#manualGuideTitle"),
+  manualGuideMeta: document.querySelector("#manualGuideMeta"),
+  manualGuideContent: document.querySelector("#manualGuideContent"),
   logOutput: document.querySelector("#logOutput"),
+  activityToggle: document.querySelector("#activityToggle"),
+  activityPanel: document.querySelector("#activityPanel"),
   refreshButton: document.querySelector("#refreshButton"),
   chooseRootButton: document.querySelector("#chooseRootButton"),
   defaultRootButton: document.querySelector("#defaultRootButton"),
   cloneButton: document.querySelector("#cloneButton"),
+  customCloneButton: document.querySelector("#customCloneButton"),
+  customCloneDialog: document.querySelector("#customCloneDialog"),
+  customCloneForm: document.querySelector("#customCloneForm"),
+  customCloneUrl: document.querySelector("#customCloneUrl"),
+  customCloneCancelButton: document.querySelector("#customCloneCancelButton"),
+  customCloneSubmitButton: document.querySelector("#customCloneSubmitButton"),
+  backButton: document.querySelector("#backButton"),
   checkButton: document.querySelector("#checkButton"),
+  guideBackButton: document.querySelector("#guideBackButton"),
   venvButton: document.querySelector("#venvButton"),
   dependenciesButton: document.querySelector("#dependenciesButton"),
   extractButton: document.querySelector("#extractButton"),
@@ -32,6 +58,17 @@ function log(message) {
   elements.logOutput.scrollTop = elements.logOutput.scrollHeight;
 }
 
+// Shows either the builds home view or the selected build's environment view.
+function showView(viewName) {
+  state.activeView = viewName;
+
+  for (const panel of elements.viewPanels) {
+    panel.classList.toggle("active", panel.dataset.view === viewName);
+  }
+
+  elements.backButton.classList.toggle("hidden", viewName !== "environment");
+}
+
 // Safely invokes a backend command and routes errors into the visible activity log.
 async function call(command, payload = {}) {
   try {
@@ -40,6 +77,26 @@ async function call(command, payload = {}) {
     log(String(error));
     throw error;
   }
+}
+
+// Loads editable setup guidance copy from JSON so wording changes do not require Rust edits.
+async function loadSetupGuidance() {
+  try {
+    const response = await fetch("./setup-guidance.json");
+    state.setupGuidance = await response.json();
+  } catch (error) {
+    log(`Could not load setup-guidance.json: ${error}`);
+    state.setupGuidance = {
+      macos: [],
+      windows: [],
+      linux: [],
+    };
+  }
+}
+
+// Loads editable manual-install guide copy for environment dependencies that require outside setup.
+async function loadGuideContent() {
+  state.manualInstallGuides = await loadManualInstallGuides(log);
 }
 
 // Refreshes sibling project discovery and keeps the selected project when it still exists.
@@ -91,8 +148,16 @@ function projectCard(candidate) {
     <p class="path-line">${escapeHtml(candidate.path)}</p>
     <p class="path-line">Assets: ${escapeHtml(candidate.asset_path ?? "not found")}</p>
     <p class="path-line">Executable: ${escapeHtml(candidate.executable_path ?? "not found")}</p>
-    <button class="play-button" type="button" ${playDisabled ? "disabled" : ""}>Play</button>
+    <div class="card-actions">
+      <button class="secondary-button environment-button" type="button">Environment</button>
+      <button class="play-button" type="button" ${playDisabled ? "disabled" : ""}>Play</button>
+    </div>
   `;
+
+  card.querySelector(".environment-button").addEventListener("click", async (event) => {
+    event.stopPropagation();
+    await openEnvironment(candidate.path);
+  });
 
   card.querySelector(".play-button").addEventListener("click", async (event) => {
     event.stopPropagation();
@@ -107,6 +172,12 @@ async function selectProject(projectPath) {
   state.selectedPath = projectPath;
   renderProjects();
   await runEnvironmentChecks();
+}
+
+// Opens setup checks for exactly the project chosen from the builds page.
+async function openEnvironment(projectPath) {
+  await selectProject(projectPath);
+  showView("environment");
 }
 
 // Maps backend status ids into short user-facing labels.
@@ -138,8 +209,9 @@ async function runEnvironmentChecks() {
     projectPath: state.selectedPath,
     scanRoot: state.scanRoot,
   });
+  state.environmentOs = report.os;
   renderChecks(report.checks);
-  renderSteps(report.next_steps);
+  renderSteps();
 }
 
 // Renders each environment check as a compact row for quick scanning.
@@ -148,19 +220,19 @@ function renderChecks(checks) {
 
   for (const check of checks) {
     const row = document.createElement("div");
-    row.className = `check-row ${isMissingMsbuild(check) ? "has-action" : ""}`;
+    row.className = `check-row state-${check.state} ${hasManualAction(check) ? "has-action" : ""}`;
     row.innerHTML = `
       <span class="check ${escapeHtml(check.state)}">${escapeHtml(check.state)}</span>
       <strong>${escapeHtml(check.label)}</strong>
       <span class="path-line">${escapeHtml(check.detail || "No detail returned.")}</span>
     `;
 
-    if (isMissingMsbuild(check)) {
+    if (hasManualAction(check)) {
       const fixButton = document.createElement("button");
       fixButton.className = "check-action-button";
       fixButton.type = "button";
-      fixButton.textContent = "Manual fix";
-      fixButton.addEventListener("click", () => runAction("open_msbuild_help"));
+      fixButton.textContent = "Manual install";
+      fixButton.addEventListener("click", () => openManualInstallGuide(check));
       row.append(fixButton);
     }
 
@@ -168,18 +240,41 @@ function renderChecks(checks) {
   }
 }
 
-// Detects the one Windows prerequisite where the launcher can only guide the user to Microsoft's installer.
-function isMissingMsbuild(check) {
-  return check.label === "MSBuild" && check.state === "missing";
+// Detects missing dependencies with editable manual guides, excluding rows covered by existing action buttons.
+function hasManualAction(check) {
+  const automaticRows = ["venv", "python-dependencies"];
+  return (
+    check.state === "missing" &&
+    !automaticRows.includes(check.id) &&
+    hasManualInstallGuide(state.manualInstallGuides, state.environmentOs, check.id)
+  );
 }
 
-// Renders setup steps from Rust so OS-specific advice stays consistent with backend checks.
-function renderSteps(steps) {
+// Opens the in-app manual guide page for the dependency represented by a missing check row.
+function openManualInstallGuide(check) {
+  const guide = getManualInstallGuide(state.manualInstallGuides, state.environmentOs, check.id);
+
+  if (!guide) {
+    log(`No manual install guide found for ${check.label} on ${state.environmentOs}.`);
+    return;
+  }
+
+  renderManualInstallGuide(guide, elements, state.selectedPath);
+  showView("manual-guide");
+}
+
+// Renders setup steps from editable JSON and substitutes the selected project path when available.
+function renderSteps() {
+  const steps = state.setupGuidance?.[state.environmentOs] ?? [];
   elements.stepList.textContent = "";
 
   for (const step of steps) {
+    if (!state.selectedPath && step.includes("{projectPath}")) {
+      continue;
+    }
+
     const item = document.createElement("li");
-    item.textContent = step;
+    item.textContent = step.replace("{projectPath}", state.selectedPath ?? "");
     elements.stepList.append(item);
   }
 }
@@ -217,15 +312,27 @@ function selectedProjectPayload() {
 }
 
 elements.refreshButton.addEventListener("click", refreshScan);
+elements.backButton.addEventListener("click", () => showView("builds"));
+elements.guideBackButton.addEventListener("click", () => showView("environment"));
+elements.activityToggle.addEventListener("click", () => {
+  const isOpen = elements.activityPanel.classList.toggle("open");
+  elements.activityToggle.setAttribute("aria-expanded", String(isOpen));
+});
 elements.checkButton.addEventListener("click", runEnvironmentChecks);
 elements.chooseRootButton.addEventListener("click", async () => {
-  const selectedRoot = await call("choose_scan_root");
+  elements.chooseRootButton.disabled = true;
 
-  if (selectedRoot) {
-    state.scanRoot = selectedRoot;
-    state.selectedPath = null;
-    log(`Scan root set to ${selectedRoot}`);
-    await refreshScan();
+  try {
+    const selectedRoot = await call("choose_scan_root");
+
+    if (selectedRoot) {
+      state.scanRoot = selectedRoot;
+      state.selectedPath = null;
+      log(`Scan root set to ${selectedRoot}`);
+      await refreshScan();
+    }
+  } finally {
+    elements.chooseRootButton.disabled = false;
   }
 });
 elements.defaultRootButton.addEventListener("click", async () => {
@@ -235,6 +342,13 @@ elements.defaultRootButton.addEventListener("click", async () => {
   await refreshScan();
 });
 elements.cloneButton.addEventListener("click", () => runAction("clone_project", { scanRoot: state.scanRoot }));
+connectCustomCloneDialog({
+  elements,
+  getScanRoot: () => state.scanRoot,
+  call,
+  log,
+  refreshScan,
+});
 elements.clearLogButton.addEventListener("click", () => {
   elements.logOutput.textContent = "Ready.";
 });
@@ -267,4 +381,7 @@ elements.buildButton.addEventListener("click", () => {
   }
 });
 
+showView(state.activeView);
+await loadSetupGuidance();
+await loadGuideContent();
 refreshScan();

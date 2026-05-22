@@ -5,64 +5,118 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Z3R Launcher</title>
     <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./manual-guides.css" />
+    <link rel="stylesheet" href="./custom-clone.css" />
   </head>
   <body>
     <main class="shell">
       <section class="topbar" aria-label="Launcher summary">
-        <div>
+        <div class="title-group">
           <p class="eyebrow">Xander's Z3R fork</p>
           <h1>Z3R Launcher</h1>
         </div>
-        <button id="refreshButton" class="icon-button" type="button" title="Refresh scan">↻</button>
-      </section>
-
-      <section class="workspace" aria-label="Detected projects">
-        <div class="section-heading">
-          <div>
-            <h2>Detected Builds</h2>
-            <p id="parentPath">Scanning launcher siblings...</p>
-          </div>
-          <div class="button-row">
-            <button id="chooseRootButton" class="secondary-button" type="button">Choose Folder</button>
-            <button id="defaultRootButton" class="secondary-button" type="button">Use Default</button>
-            <button id="cloneButton" class="secondary-button" type="button">Clone Z3R</button>
-          </div>
+        <div class="topbar-actions">
+          <button id="backButton" class="secondary-button hidden" type="button">Back to home</button>
+          <button id="refreshButton" class="icon-button" type="button" title="Refresh scan">↻</button>
         </div>
-        <div id="projectList" class="project-grid"></div>
       </section>
 
-      <section class="workspace setup-grid" aria-label="Setup and environment">
-        <div class="setup-panel">
-          <div class="section-heading compact">
+      <section class="workspace" aria-label="Launcher workspace">
+        <section id="buildsPanel" class="view-panel active" data-view="builds" aria-label="Detected builds">
+          <div class="section-heading">
             <div>
-              <h2>Environment</h2>
-              <p>Checks are read-only unless you press an action button.</p>
+              <h2>Detected Builds</h2>
+              <p id="parentPath">Scanning launcher siblings...</p>
             </div>
-            <button id="checkButton" class="secondary-button" type="button">Run Checks</button>
+            <div class="button-row">
+              <button id="chooseRootButton" class="secondary-button" type="button">Choose Folder</button>
+              <button id="defaultRootButton" class="secondary-button" type="button">Use Default</button>
+              <button id="cloneButton" class="primary-button" type="button">Clone Z3R</button>
+              <button id="customCloneButton" class="primary-button" type="button">Clone Custom</button>
+            </div>
           </div>
-          <div id="checkList" class="check-list"></div>
-        </div>
+          <div id="projectList" class="project-grid"></div>
+        </section>
 
-        <div class="setup-panel">
-          <h2>Setup Path</h2>
-          <div class="route-stack">
-            <button id="venvButton" class="route-button" type="button">Create venv</button>
-            <button id="dependenciesButton" class="route-button" type="button">Install dependencies</button>
-            <button id="extractButton" class="route-button" type="button">Extract assets</button>
-            <button id="buildButton" class="route-button" type="button">Build selected</button>
+        <section id="environmentPanel" class="view-panel" data-view="environment" aria-label="Setup and environment">
+          <div class="environment-layout">
+            <section class="setup-path-panel" aria-label="Setup path">
+              <div class="setup-copy">
+                <h2>Setup Path</h2>
+                <ol id="stepList" class="step-list"></ol>
+              </div>
+              <div class="route-stack" aria-label="Setup actions">
+                <button id="venvButton" class="route-button" type="button">Create venv</button>
+                <button id="dependenciesButton" class="route-button" type="button">Install dependencies</button>
+                <button id="extractButton" class="route-button" type="button">Extract assets</button>
+                <button id="buildButton" class="route-button" type="button">Build selected</button>
+              </div>
+            </section>
+
+            <div class="setup-panel">
+              <div class="section-heading">
+                <div>
+                  <h2>Environment</h2>
+                  <p>Checks are read-only unless you press an action button.</p>
+                </div>
+                <button id="checkButton" class="secondary-button" type="button">Run Checks</button>
+              </div>
+              <div id="checkList" class="check-list"></div>
+            </div>
           </div>
-          <ol id="stepList" class="step-list"></ol>
-        </div>
-      </section>
+        </section>
 
-      <section class="console" aria-label="Command output">
-        <div class="section-heading compact">
-          <h2>Activity</h2>
-          <button id="clearLogButton" class="icon-button small" type="button" title="Clear activity">×</button>
-        </div>
-        <pre id="logOutput">Ready.</pre>
+        <section id="manualGuidePanel" class="view-panel" data-view="manual-guide" aria-label="Manual install guide">
+          <div class="manual-guide-shell">
+            <div class="section-heading">
+              <div>
+                <p id="manualGuideMeta" class="eyebrow">Manual install</p>
+                <h2 id="manualGuideTitle">Manual Install</h2>
+              </div>
+              <button id="guideBackButton" class="secondary-button" type="button">Back to environment</button>
+            </div>
+            <div id="manualGuideContent" class="manual-guide-content"></div>
+          </div>
+        </section>
+
+        <section class="activity-drawer" aria-label="Command output">
+          <button id="activityToggle" class="activity-toggle" type="button" aria-expanded="false">
+            Activity
+          </button>
+          <div id="activityPanel" class="activity-panel">
+            <div class="activity-heading">
+              <p>Command output and setup messages.</p>
+              <button id="clearLogButton" class="icon-button small" type="button" title="Clear activity">×</button>
+            </div>
+            <pre id="logOutput">Ready.</pre>
+          </div>
+        </section>
       </section>
     </main>
+
+    <dialog id="customCloneDialog" class="custom-clone-dialog" aria-labelledby="customCloneTitle">
+      <form id="customCloneForm" method="dialog">
+        <div class="custom-clone-copy">
+          <p class="eyebrow">Custom repository</p>
+          <h2 id="customCloneTitle">Clone Custom</h2>
+          <p>Paste only the GitHub repository URL. Do not paste a git clone command from the GitHub page.</p>
+        </div>
+        <label class="custom-clone-field">
+          <span>GitHub URL</span>
+          <input
+            id="customCloneUrl"
+            type="url"
+            placeholder="https://github.com/owner/repo"
+            autocomplete="off"
+            required
+          />
+        </label>
+        <div class="custom-clone-actions">
+          <button id="customCloneCancelButton" class="secondary-button" type="button">Cancel</button>
+          <button id="customCloneSubmitButton" class="primary-button" type="submit">Clone</button>
+        </div>
+      </form>
+    </dialog>
 
     <script type="module" src="./main.js"></script>
   </body>
