@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Z3R Launcher</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="topbar" aria-label="Launcher summary">
+        <div>
+          <p class="eyebrow">Xander's Z3R fork</p>
+          <h1>Z3R Launcher</h1>
+        </div>
+        <button id="refreshButton" class="icon-button" type="button" title="Refresh scan">↻</button>
+      </section>
+
+      <section class="workspace" aria-label="Detected projects">
+        <div class="section-heading">
+          <div>
+            <h2>Detected Builds</h2>
+            <p id="parentPath">Scanning launcher siblings...</p>
+          </div>
+          <div class="button-row">
+            <button id="chooseRootButton" class="secondary-button" type="button">Choose Folder</button>
+            <button id="defaultRootButton" class="secondary-button" type="button">Use Default</button>
+            <button id="cloneButton" class="secondary-button" type="button">Clone Z3R</button>
+          </div>
+        </div>
+        <div id="projectList" class="project-grid"></div>
+      </section>
+
+      <section class="workspace setup-grid" aria-label="Setup and environment">
+        <div class="setup-panel">
+          <div class="section-heading compact">
+            <div>
+              <h2>Environment</h2>
+              <p>Checks are read-only unless you press an action button.</p>
+            </div>
+            <button id="checkButton" class="secondary-button" type="button">Run Checks</button>
+          </div>
+          <div id="checkList" class="check-list"></div>
+        </div>
+
+        <div class="setup-panel">
+          <h2>Setup Path</h2>
+          <div class="route-stack">
+            <button id="venvButton" class="route-button" type="button">Create venv</button>
+            <button id="dependenciesButton" class="route-button" type="button">Install dependencies</button>
+            <button id="extractButton" class="route-button" type="button">Extract assets</button>
+            <button id="buildButton" class="route-button" type="button">Build selected</button>
+          </div>
+          <ol id="stepList" class="step-list"></ol>
+        </div>
+      </section>
+
+      <section class="console" aria-label="Command output">
+        <div class="section-heading compact">
+          <h2>Activity</h2>
+          <button id="clearLogButton" class="icon-button small" type="button" title="Clear activity">×</button>
+        </div>
+        <pre id="logOutput">Ready.</pre>
+      </section>
+    </main>
+
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>
