@@ -5,6 +5,9 @@ on:
     tags:
       - "v*"
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build-tauri:
     permissions:
@@ -16,22 +19,26 @@ jobs:
         include:
           - platform: macos-latest
             args: --target aarch64-apple-darwin
+            rust_targets: aarch64-apple-darwin
           - platform: macos-latest
             args: --target x86_64-apple-darwin
+            rust_targets: x86_64-apple-darwin
           - platform: ubuntu-22.04
             args: ""
-          - platform: windows-latest
+            rust_targets: ""
+          - platform: windows-2022
             args: ""
+            rust_targets: ""
 
     runs-on: ${{ matrix.platform }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          targets: ${{ matrix.rust_targets }}
 
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-22.04'
@@ -50,4 +57,5 @@ jobs:
           releaseBody: "Download the launcher for your operating system below."
           releaseDraft: true
           prerelease: false
+          uploadPlainBinary: true
           args: ${{ matrix.args }}
