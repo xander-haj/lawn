@@ -15,6 +15,7 @@ pub fn run() {
             env_checks::check_environment,
             actions::launch_game,
             actions::choose_scan_root,
+            actions::open_msbuild_help,
             actions::clone_project,
             actions::create_venv,
             actions::install_dependencies,

@@ -6,6 +6,9 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use tauri_plugin_dialog::DialogExt;
 
+const MSBUILD_HELP_URL: &str =
+    "https://learn.microsoft.com/en-us/visualstudio/msbuild/msbuild?view=visualstudio";
+
 // Launches the selected game executable with its own folder as the working directory.
 #[tauri::command]
 pub fn launch_game(executable_path: String) -> Result<ActionResult, String> {
@@ -45,6 +48,19 @@ pub fn choose_scan_root(app: tauri::AppHandle) -> Result<Option<String>, String>
         .transpose()?;
 
     Ok(folder)
+}
+
+// Opens Microsoft's MSBuild guidance so Windows users can install the required build tools manually.
+#[tauri::command]
+pub fn open_msbuild_help() -> Result<ActionResult, String> {
+    open_url(MSBUILD_HELP_URL)?;
+
+    Ok(ActionResult {
+        ok: true,
+        message: "Opened Microsoft MSBuild installation guidance.".to_string(),
+        stdout: String::new(),
+        stderr: String::new(),
+    })
 }
 
 // Clones Xander's Z3R repository into the active scan root when the user requests it.
@@ -171,6 +187,32 @@ fn run_tcc_build(project: &Path) -> Result<ActionResult, String> {
     }
 
     Ok(result)
+}
+
+// Opens a fixed trusted URL with the operating system's default browser.
+fn open_url(url: &str) -> Result<(), String> {
+    let mut command = if cfg!(target_os = "windows") {
+        let mut command = Command::new("cmd");
+        command.args(["/C", "start", "", url]);
+        command
+    } else if cfg!(target_os = "macos") {
+        let mut command = Command::new("open");
+        command.arg(url);
+        command
+    } else {
+        let mut command = Command::new("xdg-open");
+        command.arg(url);
+        command
+    };
+
+    command
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|error| format!("Could not open help page: {error}"))?;
+
+    Ok(())
 }
 
 // Executes a fixed command in a fixed working directory and captures output for the UI log.

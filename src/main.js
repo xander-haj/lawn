@@ -148,14 +148,29 @@ function renderChecks(checks) {
 
   for (const check of checks) {
     const row = document.createElement("div");
-    row.className = "check-row";
+    row.className = `check-row ${isMissingMsbuild(check) ? "has-action" : ""}`;
     row.innerHTML = `
       <span class="check ${escapeHtml(check.state)}">${escapeHtml(check.state)}</span>
       <strong>${escapeHtml(check.label)}</strong>
       <span class="path-line">${escapeHtml(check.detail || "No detail returned.")}</span>
     `;
+
+    if (isMissingMsbuild(check)) {
+      const fixButton = document.createElement("button");
+      fixButton.className = "check-action-button";
+      fixButton.type = "button";
+      fixButton.textContent = "Manual fix";
+      fixButton.addEventListener("click", () => runAction("open_msbuild_help"));
+      row.append(fixButton);
+    }
+
     elements.checkList.append(row);
   }
+}
+
+// Detects the one Windows prerequisite where the launcher can only guide the user to Microsoft's installer.
+function isMissingMsbuild(check) {
+  return check.label === "MSBuild" && check.state === "missing";
 }
 
 // Renders setup steps from Rust so OS-specific advice stays consistent with backend checks.

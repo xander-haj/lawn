@@ -241,6 +241,10 @@ h2 {
   background: var(--panel-strong);
 }
 
+.check-row.has-action {
+  grid-template-columns: 96px minmax(120px, 0.6fr) minmax(0, 1fr) max-content;
+}
+
 .check {
   padding: 3px 7px;
   border-radius: 999px;
@@ -248,6 +252,19 @@ h2 {
   font-weight: 800;
   text-align: center;
   text-transform: uppercase;
+}
+
+.check-action-button {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--panel);
+  font-weight: 800;
+}
+
+.check-action-button:hover {
+  background: var(--button-hover);
 }
 
 .step-list {
@@ -285,7 +302,8 @@ pre {
   }
 
   .setup-grid,
-  .check-row {
+  .check-row,
+  .check-row.has-action {
     grid-template-columns: 1fr;
   }
 }

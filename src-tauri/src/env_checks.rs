@@ -143,7 +143,7 @@ fn check_windows_build_tools(project_path: Option<&Path>) -> Vec<EnvironmentChec
             "where",
             "MSBuild",
             &["msbuild"],
-            "Visual Studio build route uses MSBuild.",
+            "Install Build Tools for Visual Studio and select the Desktop development with C++ workload.",
         ),
         check_command(
             "where",
