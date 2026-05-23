@@ -1,14 +1,16 @@
-// This frontend keeps UI state and delegates filesystem/process work to scoped Rust commands.
+// Launcher bootstrap module. Owns shared state, the Tauri invoker wrapper, view
+// switching, and top-bar button wiring. Per-screen DOM building lives in dedicated
+// modules so this file stays focused on app-wide concerns.
 import { connectCustomCloneDialog } from "./custom-clone.js";
-import {
-  getManualInstallGuide,
-  hasManualInstallGuide,
-  loadManualInstallGuides,
-  renderManualInstallGuide,
-} from "./manual-guides.js";
-
+import { loadManualInstallGuides } from "./manual-guides.js";
+import { connectRandomizerSetup } from "./randomizer-setup.js";
+import { connectProjectCards } from "./project-cards.js";
+import { connectEnvironmentScreen } from "./environment-screen.js";
+import { connectControlsScreen } from "./controls-screen.js";
 const { invoke } = window.__TAURI__.core;
 
+// App-wide mutable state. Each screen module reads from this through the helpers bag
+// so there is exactly one source of truth for the selected project, scan root, etc.
 const state = {
   candidates: [],
   selectedPath: null,
@@ -19,6 +21,8 @@ const state = {
   manualInstallGuides: null,
 };
 
+// DOM references collected once at boot so screen modules don't repeat querySelector
+// lookups on every render.
 const elements = {
   viewPanels: document.querySelectorAll(".view-panel"),
   parentPath: document.querySelector("#parentPath"),
@@ -47,245 +51,72 @@ const elements = {
   venvButton: document.querySelector("#venvButton"),
   dependenciesButton: document.querySelector("#dependenciesButton"),
   extractButton: document.querySelector("#extractButton"),
-  buildButton: document.querySelector("#buildButton"),
   clearLogButton: document.querySelector("#clearLogButton"),
 };
 
-// Appends a timestamped entry to the activity console so users can follow long setup flows.
+// Timestamped activity console entry used by every screen for command output and
+// non-fatal warnings. Keeps the log entries consistent and auto-scrolls to bottom.
 function log(message) {
-  const timestamp = new Date().toLocaleTimeString();
-  elements.logOutput.textContent += `\n[${timestamp}] ${message}`;
+  const now = new Date().toLocaleTimeString();
+  elements.logOutput.textContent += `\n[${now}] ${message}`;
   elements.logOutput.scrollTop = elements.logOutput.scrollHeight;
 }
 
-// Shows either the builds home view or the selected build's environment view.
-function showView(viewName) {
-  state.activeView = viewName;
-
-  for (const panel of elements.viewPanels) {
-    panel.classList.toggle("active", panel.dataset.view === viewName);
-  }
-
-  elements.backButton.classList.toggle("hidden", viewName !== "environment");
-}
-
-// Safely invokes a backend command and routes errors into the visible activity log.
+// Safe Tauri invoker that routes backend errors into the activity log AND re-throws so
+// callers can guard their own UI flow when needed.
 async function call(command, payload = {}) {
   try {
     return await invoke(command, payload);
   } catch (error) {
-    log(String(error));
+    log(`${command} failed: ${error}`);
     throw error;
   }
 }
 
-// Loads editable setup guidance copy from JSON so wording changes do not require Rust edits.
-async function loadSetupGuidance() {
-  try {
-    const response = await fetch("./setup-guidance.json");
-    state.setupGuidance = await response.json();
-  } catch (error) {
-    log(`Could not load setup-guidance.json: ${error}`);
-    state.setupGuidance = {
-      macos: [],
-      windows: [],
-      linux: [],
-    };
+// View switching toggles the .active class on the matching panel. The Back to home
+// button is hidden on the home view; the global topbar actions (Choose Folder, Use
+// Default, Clone Z3R, Clone Custom) are home-only since they operate on the scan root
+// or create new project folders, neither of which makes sense from a sub-screen.
+function showView(view) {
+  state.activeView = view;
+  for (const panel of elements.viewPanels) {
+    panel.classList.toggle("active", panel.dataset.view === view);
+  }
+  const onHome = view === "builds";
+  elements.backButton.classList.toggle("hidden", onHome);
+  elements.chooseRootButton.classList.toggle("hidden", !onHome);
+  elements.defaultRootButton.classList.toggle("hidden", !onHome);
+  elements.cloneButton.classList.toggle("hidden", !onHome);
+  elements.customCloneButton.classList.toggle("hidden", !onHome);
+
+  // Refresh the per-view content lazily so screens always reflect on-disk truth.
+  if (view === "controls") {
+    controlsScreen.refresh();
   }
 }
 
-// Loads editable manual-install guide copy for environment dependencies that require outside setup.
-async function loadGuideContent() {
-  state.manualInstallGuides = await loadManualInstallGuides(log);
-}
-
-// Refreshes sibling project discovery and keeps the selected project when it still exists.
-async function refreshScan() {
-  const scan = await call("scan_siblings", { scanRoot: state.scanRoot });
-  state.candidates = scan.candidates;
-  elements.parentPath.textContent = `Scan and clone root: ${scan.launcher_parent}`;
-
-  if (!state.candidates.some((candidate) => candidate.path === state.selectedPath)) {
-    state.selectedPath = state.candidates[0]?.path ?? null;
-  }
-
-  renderProjects();
-  await runEnvironmentChecks();
-}
-
-// Renders the project cards with launch/build state based on backend scan results.
-function renderProjects() {
-  elements.projectList.textContent = "";
-
-  if (state.candidates.length === 0) {
-    const empty = document.createElement("article");
-    empty.className = "project-card";
-    empty.innerHTML = `
-      <span class="status warning">Setup needed</span>
-      <h3>No Z3R folders found</h3>
-      <p class="path-line">Use Clone Z3R or place a Z3R folder beside this launcher.</p>
-    `;
-    elements.projectList.append(empty);
-    return;
-  }
-
-  for (const candidate of state.candidates) {
-    elements.projectList.append(projectCard(candidate));
-  }
-}
-
-// Creates one selectable card for a discovered folder and wires its Play button.
-function projectCard(candidate) {
-  const card = document.createElement("article");
-  card.className = `project-card ${candidate.path === state.selectedPath ? "selected" : ""}`;
-  card.addEventListener("click", () => selectProject(candidate.path));
-
-  const statusClass = candidate.status === "ready" ? "ready" : candidate.status === "missing-assets" ? "missing" : "warning";
-  const playDisabled = candidate.status !== "ready" || !candidate.executable_path;
-  card.innerHTML = `
-    <span class="status ${statusClass}">${labelStatus(candidate.status)}</span>
-    <h3>${escapeHtml(candidate.name)}</h3>
-    <p class="path-line">${escapeHtml(candidate.path)}</p>
-    <p class="path-line">Assets: ${escapeHtml(candidate.asset_path ?? "not found")}</p>
-    <p class="path-line">Executable: ${escapeHtml(candidate.executable_path ?? "not found")}</p>
-    <div class="card-actions">
-      <button class="secondary-button environment-button" type="button">Environment</button>
-      <button class="play-button" type="button" ${playDisabled ? "disabled" : ""}>Play</button>
-    </div>
-  `;
-
-  card.querySelector(".environment-button").addEventListener("click", async (event) => {
-    event.stopPropagation();
-    await openEnvironment(candidate.path);
-  });
-
-  card.querySelector(".play-button").addEventListener("click", async (event) => {
-    event.stopPropagation();
-    await launchProject(candidate);
-  });
-
-  return card;
-}
-
-// Stores the selected project path and refreshes checks that depend on project-local files.
+// Stores the selected project path and refreshes both the card grid (selected style)
+// and the environment screen (which reacts to the new project's local files).
 async function selectProject(projectPath) {
   state.selectedPath = projectPath;
-  renderProjects();
-  await runEnvironmentChecks();
+  projectCards.render();
+  await environmentScreen.runChecks();
 }
 
-// Opens setup checks for exactly the project chosen from the builds page.
+// Opens the environment view for a specific project, mirroring openControls below.
 async function openEnvironment(projectPath) {
   await selectProject(projectPath);
   showView("environment");
 }
 
-// Maps backend status ids into short user-facing labels.
-function labelStatus(status) {
-  const labels = {
-    ready: "Ready",
-    "needs-deploy-copy": "Needs deploy copy",
-    "assets-ready": "Assets ready",
-    "missing-assets": "Missing assets",
-    "source-only": "Source only",
-  };
-
-  return labels[status] ?? status;
-}
-
-// Escapes text inserted through template strings so filesystem names cannot become markup.
-function escapeHtml(value) {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-// Runs environment checks and renders setup guidance for the selected project.
-async function runEnvironmentChecks() {
-  const report = await call("check_environment", {
-    projectPath: state.selectedPath,
-    scanRoot: state.scanRoot,
-  });
-  state.environmentOs = report.os;
-  renderChecks(report.checks);
-  renderSteps();
-}
-
-// Renders each environment check as a compact row for quick scanning.
-function renderChecks(checks) {
-  elements.checkList.textContent = "";
-
-  for (const check of checks) {
-    const row = document.createElement("div");
-    row.className = `check-row state-${check.state} ${hasManualAction(check) ? "has-action" : ""}`;
-    row.innerHTML = `
-      <span class="check ${escapeHtml(check.state)}">${escapeHtml(check.state)}</span>
-      <strong>${escapeHtml(check.label)}</strong>
-      <span class="path-line">${escapeHtml(check.detail || "No detail returned.")}</span>
-    `;
-
-    if (hasManualAction(check)) {
-      const fixButton = document.createElement("button");
-      fixButton.className = "check-action-button";
-      fixButton.type = "button";
-      fixButton.textContent = "Manual install";
-      fixButton.addEventListener("click", () => openManualInstallGuide(check));
-      row.append(fixButton);
-    }
-
-    elements.checkList.append(row);
-  }
-}
-
-// Detects missing dependencies with editable manual guides, excluding rows covered by existing action buttons.
-function hasManualAction(check) {
-  const automaticRows = ["venv", "python-dependencies"];
-  return (
-    check.state === "missing" &&
-    !automaticRows.includes(check.id) &&
-    hasManualInstallGuide(state.manualInstallGuides, state.environmentOs, check.id)
-  );
-}
-
-// Opens the in-app manual guide page for the dependency represented by a missing check row.
-function openManualInstallGuide(check) {
-  const guide = getManualInstallGuide(state.manualInstallGuides, state.environmentOs, check.id);
-
-  if (!guide) {
-    log(`No manual install guide found for ${check.label} on ${state.environmentOs}.`);
-    return;
-  }
-
-  renderManualInstallGuide(guide, elements, state.selectedPath);
-  showView("manual-guide");
-}
-
-// Renders setup steps from editable JSON and substitutes the selected project path when available.
-function renderSteps() {
-  const steps = state.setupGuidance?.[state.environmentOs] ?? [];
-  elements.stepList.textContent = "";
-
-  for (const step of steps) {
-    if (!state.selectedPath && step.includes("{projectPath}")) {
-      continue;
-    }
-
-    const item = document.createElement("li");
-    item.textContent = step.replace("{projectPath}", state.selectedPath ?? "");
-    elements.stepList.append(item);
-  }
-}
-
-// Launches a ready project through the backend with no arbitrary shell execution.
+// Launches a ready project. The backend takes only the executable path and runs it
+// from its own folder so no arbitrary shell execution happens here.
 async function launchProject(candidate) {
   const result = await call("launch_game", { executablePath: candidate.executable_path });
   log(result.message);
 }
 
-// Runs a setup action and refreshes project/environment state after it completes.
+// Runs a setup action and then refreshes scan + environment so the UI catches up.
 async function runAction(command, payload = {}) {
   const result = await call(command, payload);
   log(result.message);
@@ -301,7 +132,8 @@ async function runAction(command, payload = {}) {
   await refreshScan();
 }
 
-// Requires a selected project for actions that operate inside the Z3R folder.
+// Guard used by setup buttons that require a selected project — logs a hint and
+// returns null so the calling handler can short-circuit cleanly.
 function selectedProjectPayload() {
   if (!state.selectedPath) {
     log("Select or clone a Z3R folder first.");
@@ -311,6 +143,59 @@ function selectedProjectPayload() {
   return { projectPath: state.selectedPath };
 }
 
+// Re-runs the backend sibling scan, keeps the selected project alive when it still
+// exists, and repaints the card grid and environment screen.
+async function refreshScan() {
+  const scan = await call("scan_siblings", { scanRoot: state.scanRoot });
+  state.candidates = scan.candidates;
+  elements.parentPath.textContent = "";
+
+  if (!state.candidates.some((candidate) => candidate.path === state.selectedPath)) {
+    state.selectedPath = state.candidates[0]?.path ?? null;
+  }
+
+  projectCards.render();
+  await environmentScreen.runChecks();
+}
+
+// Loads the editable Setup Path JSON so step copy can change without Rust edits.
+async function loadSetupGuidance() {
+  try {
+    const response = await fetch("./setup-guidance.json");
+    state.setupGuidance = await response.json();
+  } catch (error) {
+    log(`Could not load setup guidance: ${error}`);
+    state.setupGuidance = null;
+  }
+}
+
+// Loads the editable manual-install guide JSON consumed by environment-screen.js when
+// a missing dependency row exposes a Manual install button.
+async function loadGuideContent() {
+  state.manualInstallGuides = await loadManualInstallGuides();
+}
+
+// One helpers bag shared with every screen module so they all see the same state +
+// shared callbacks without reaching for module-level globals of their own.
+const helpers = {
+  state,
+  elements,
+  call,
+  log,
+  showView,
+  selectProject,
+  openEnvironment,
+  launchProject,
+  refreshScan,
+  runAction,
+  selectedProjectPayload,
+};
+
+// Each connect*() returns a small object the bootstrap calls into (render/refresh).
+const projectCards = connectProjectCards(helpers);
+const environmentScreen = connectEnvironmentScreen(helpers);
+const controlsScreen = connectControlsScreen(helpers);
+
 elements.refreshButton.addEventListener("click", refreshScan);
 elements.backButton.addEventListener("click", () => showView("builds"));
 elements.guideBackButton.addEventListener("click", () => showView("environment"));
@@ -318,7 +203,7 @@ elements.activityToggle.addEventListener("click", () => {
   const isOpen = elements.activityPanel.classList.toggle("open");
   elements.activityToggle.setAttribute("aria-expanded", String(isOpen));
 });
-elements.checkButton.addEventListener("click", runEnvironmentChecks);
+elements.checkButton.addEventListener("click", environmentScreen.runChecks);
 elements.chooseRootButton.addEventListener("click", async () => {
   elements.chooseRootButton.disabled = true;
 
@@ -349,35 +234,33 @@ connectCustomCloneDialog({
   log,
   refreshScan,
 });
+connectRandomizerSetup({
+  state,
+  call,
+  log,
+  refreshScan,
+  runAction,
+  selectedProjectPayload,
+});
 elements.clearLogButton.addEventListener("click", () => {
   elements.logOutput.textContent = "Ready.";
 });
 elements.venvButton.addEventListener("click", () => {
   const payload = selectedProjectPayload();
-
   if (payload) {
     runAction("create_venv", payload);
   }
 });
 elements.dependenciesButton.addEventListener("click", () => {
   const payload = selectedProjectPayload();
-
   if (payload) {
     runAction("install_dependencies", payload);
   }
 });
 elements.extractButton.addEventListener("click", () => {
   const payload = selectedProjectPayload();
-
   if (payload) {
     runAction("extract_assets", payload);
-  }
-});
-elements.buildButton.addEventListener("click", () => {
-  const payload = selectedProjectPayload();
-
-  if (payload) {
-    runAction("build_project", payload);
   }
 });
 

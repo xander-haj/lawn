@@ -1,5 +1,0 @@
-# Disables macOS AppleDouble sidecar files during Cargo/Tauri build copy operations.
-# Keep target-dir out of source control so GitHub Actions can use each runner's native target path.
-[env]
-COPYFILE_DISABLE = "1"
-COPY_EXTENDED_ATTRIBUTES_DISABLE = "1"

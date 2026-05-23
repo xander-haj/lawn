@@ -5,18 +5,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Z3R Launcher</title>
     <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./activity-drawer.css" />
+    <link rel="stylesheet" href="./card-aspect-ratio.css" />
+    <link rel="stylesheet" href="./controls-screen.css" />
+    <link rel="stylesheet" href="./controller-overlay.css" />
     <link rel="stylesheet" href="./manual-guides.css" />
     <link rel="stylesheet" href="./custom-clone.css" />
+    <link rel="stylesheet" href="./randomizer-setup.css" />
   </head>
   <body>
     <main class="shell">
       <section class="topbar" aria-label="Launcher summary">
         <div class="title-group">
-          <p class="eyebrow">Xander's Z3R fork</p>
           <h1>Z3R Launcher</h1>
         </div>
         <div class="topbar-actions">
           <button id="backButton" class="secondary-button hidden" type="button">Back to home</button>
+          <button id="chooseRootButton" class="secondary-button" type="button">Choose Folder</button>
+          <button id="defaultRootButton" class="secondary-button" type="button">Use Default</button>
+          <button id="cloneButton" class="primary-button" type="button">Clone Z3R</button>
+          <button id="customCloneButton" class="primary-button" type="button">Clone Custom</button>
           <button id="refreshButton" class="icon-button" type="button" title="Refresh scan">↻</button>
         </div>
       </section>
@@ -26,13 +34,7 @@
           <div class="section-heading">
             <div>
               <h2>Detected Builds</h2>
-              <p id="parentPath">Scanning launcher siblings...</p>
-            </div>
-            <div class="button-row">
-              <button id="chooseRootButton" class="secondary-button" type="button">Choose Folder</button>
-              <button id="defaultRootButton" class="secondary-button" type="button">Use Default</button>
-              <button id="cloneButton" class="primary-button" type="button">Clone Z3R</button>
-              <button id="customCloneButton" class="primary-button" type="button">Clone Custom</button>
+              <p id="parentPath" class="hidden"></p>
             </div>
           </div>
           <div id="projectList" class="project-grid"></div>
@@ -48,8 +50,7 @@
               <div class="route-stack" aria-label="Setup actions">
                 <button id="venvButton" class="route-button" type="button">Create venv</button>
                 <button id="dependenciesButton" class="route-button" type="button">Install dependencies</button>
-                <button id="extractButton" class="route-button" type="button">Extract assets</button>
-                <button id="buildButton" class="route-button" type="button">Build selected</button>
+                <button id="extractButton" class="route-button" type="button">Build assets</button>
               </div>
             </section>
 
@@ -63,6 +64,122 @@
               </div>
               <div id="checkList" class="check-list"></div>
             </div>
+          </div>
+        </section>
+
+        <section id="randomizerPanel" class="view-panel" data-view="randomizer" aria-label="Randomizer setup">
+          <div class="randomizer-layout">
+            <section class="setup-path-panel randomizer-hero" aria-label="Randomizer setup">
+              <div class="setup-copy">
+                <h2>Randomizer Setup</h2>
+                <div id="randomizerInstructions" class="randomizer-instructions"></div>
+              </div>
+              <div class="route-stack" aria-label="Randomizer actions">
+                <button id="randomizerExtractButton" class="route-button" type="button">Extract assets</button>
+                <button id="randomizerPreviewButton" class="route-button" type="button">Preview randomization</button>
+                <button id="randomizerRunButton" class="route-button" type="button">Randomize YAML/configs</button>
+                <button id="randomizerBuildButton" class="route-button" type="button">Build randomized assets</button>
+              </div>
+            </section>
+
+            <section class="setup-panel randomizer-configs" aria-label="Randomizer configs">
+              <div class="section-heading">
+                <div>
+                  <h2>Configs</h2>
+                  <p id="randomizerStatus">Select a build to inspect randomizer setup.</p>
+                </div>
+                <button id="randomizerRestoreButton" class="secondary-button" type="button">
+                  Restore vanilla YAML
+                </button>
+              </div>
+              <form id="randomizerConfigForm" class="randomizer-form">
+                <label>
+                  <span>Mode</span>
+                  <select id="randomizerMode">
+                    <option value="safe">Safe Mode</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Seed</span>
+                  <input id="randomizerSeed" type="text" placeholder="Leave blank to generate one" autocomplete="off" />
+                </label>
+                <label>
+                  <span>Excluded rooms</span>
+                  <input id="randomizerExcludeRooms" type="text" placeholder="260,261" autocomplete="off" />
+                </label>
+                <label>
+                  <span>Excluded locations</span>
+                  <input
+                    id="randomizerExcludeLocations"
+                    type="text"
+                    placeholder="room:260:chest:0"
+                    autocomplete="off"
+                  />
+                </label>
+                <div class="randomizer-exclusion-grid">
+                  <div class="randomizer-exclusion-column">
+                    <label>
+                      <span>Excluded items</span>
+                      <input id="randomizerExcludeItems" type="text" placeholder="0x32,0x24" autocomplete="off" />
+                    </label>
+                    <div
+                      id="randomizerItemsDropdownPanel"
+                      class="exclusion-dropdown-panel"
+                      aria-label="Excluded items list"
+                    ></div>
+                  </div>
+                  <div class="randomizer-exclusion-column">
+                    <label>
+                      <span>Excluded categories</span>
+                      <input
+                        id="randomizerExcludeCategories"
+                        type="text"
+                        placeholder="big-key,map"
+                        autocomplete="off"
+                      />
+                    </label>
+                    <div
+                      id="randomizerCategoriesDropdownPanel"
+                      class="exclusion-dropdown-panel"
+                      aria-label="Excluded categories list"
+                    ></div>
+                  </div>
+                </div>
+                <div class="randomizer-toggle-grid">
+                  <label class="toggle-row">
+                    <input id="randomizerSmallKeys" type="checkbox" />
+                    <span>Include small keys</span>
+                  </label>
+                  <label class="toggle-row">
+                    <input id="randomizerBigChests" type="checkbox" />
+                    <span>Include big chests</span>
+                  </label>
+                  <label class="toggle-row">
+                    <input id="randomizerNoSpoiler" type="checkbox" />
+                    <span>No spoiler log</span>
+                  </label>
+                </div>
+              </form>
+              <div id="randomizerConfigList" class="randomizer-config-list"></div>
+            </section>
+          </div>
+        </section>
+
+        <section id="controlsPanel" class="view-panel" data-view="controls" aria-label="Controls editor">
+          <div class="controls-shell">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Controls</p>
+                <h2 id="controlsTitle">Controls</h2>
+                <p id="controlsAuthor" class="controls-author"></p>
+              </div>
+            </div>
+            <div class="controls-tab-bar">
+              <button class="controls-tab-button active" data-controls-tab="keymap" type="button">KeyMap</button>
+              <button class="controls-tab-button" data-controls-tab="gamepad" type="button">Gamepad</button>
+            </div>
+            <div id="controlsKeymapTab" class="controls-tab-panel active"></div>
+            <div id="controlsGamepadTab" class="controls-tab-panel"></div>
           </div>
         </section>
 

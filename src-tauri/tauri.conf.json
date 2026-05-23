@@ -11,9 +11,9 @@
     "windows": [
       {
         "title": "Z3R Launcher",
-        "width": 1120,
+        "width": 1280,
         "height": 760,
-        "minWidth": 860,
+        "minWidth": 1240,
         "minHeight": 620,
         "resizable": true,
         "fullscreen": false

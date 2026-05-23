@@ -27,7 +27,7 @@
   box-sizing: border-box;
 }
 body {
-  min-width: 760px;
+  min-width: 1240px;
   height: 100vh;
   margin: 0;
   overflow: hidden;
@@ -86,14 +86,21 @@ button:disabled {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 118px;
-  padding: 26px 34px;
+  min-height: 92px;
+  gap: 24px;
+  padding: 22px 34px;
 }
-.topbar-actions, .button-row, .card-actions, .activity-heading {
+.topbar-actions, .card-setup-actions, .activity-heading {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 14px;
+}
+.topbar-actions { flex-wrap: nowrap; min-width: max-content; }
+.topbar-actions .secondary-button, .topbar-actions .primary-button {
+  min-width: 132px;
+  padding: 0 18px;
 }
 .hidden {
   display: none;
@@ -116,7 +123,6 @@ h1, h2, h3 {
   letter-spacing: 0.02em;
 }
 h1 {
-  margin-top: 8px;
   font-size: 2.7rem;
   line-height: 1;
   text-shadow: 0 2px 0 #000, 0 0 18px rgba(244, 196, 97, 0.25);
@@ -152,9 +158,7 @@ h3 {
   gap: 24px;
   margin-bottom: 24px;
 }
-.section-heading p {
-  margin-top: 7px;
-}
+.section-heading p { margin-top: 7px; }
 .icon-button, .secondary-button, .primary-button, .route-button, .play-button, .check-action-button, .activity-toggle {
   min-height: 48px;
   padding: 0 24px;
@@ -177,10 +181,7 @@ h3 {
   padding: 0;
   font-size: 1.35rem;
 }
-.icon-button.small {
-  width: 42px;
-  min-height: 42px;
-}
+.icon-button.small { width: 42px; min-height: 42px; }
 .primary-button, .route-button, .play-button {
   border-color: var(--gold);
 }
@@ -192,16 +193,12 @@ button:hover {
   transform: translateY(-1px);
   box-shadow: 0 0 18px rgba(209, 154, 50, 0.28);
 }
-.project-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
-  gap: 22px;
-}
+.project-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 22px; }
 .project-card {
   display: grid;
-  gap: 15px;
-  min-height: 250px;
-  padding: 28px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto 1fr auto;
+  gap: 15px; min-height: 180px; padding: 24px;
 }
 .project-card.selected {
   border-color: var(--gold);
@@ -210,12 +207,42 @@ button:hover {
     var(--panel);
   box-shadow: inset 0 0 0 1px var(--gold), 0 0 24px rgba(209, 154, 50, 0.18);
 }
-.card-actions {
-  justify-content: space-between;
+.project-card .card-title-block { grid-column: 1 / -1; }
+.project-card h3 { margin: 0; }
+/* Author line shown only for nested {owner}/{repo} clones; styled as small italic muted
+   text so it sits quietly under the repo title without competing with the status pill. */
+.card-author {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-style: italic;
+}
+.project-card .play-button { grid-column: 2; grid-row: 1; align-self: start; justify-self: end; }
+/* Card-bottom rows: aspect+controls above environment+randomizer. Both rows use the
+   same 2-equal-column grid so the buttons always sit side by side at every shell
+   width. align-self: end on .card-setup-actions pins the lower row to the card
+   bottom; .card-config-actions sits immediately above it. */
+.card-config-actions,
+.card-setup-actions {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.card-config-actions {
+  align-self: end;
   margin-top: 8px;
+}
+
+.card-setup-actions {
+  align-self: end;
+  justify-content: flex-start;
+  margin-top: 0;
 }
 .status, .check {
   justify-self: start;
+  align-self: start;
   min-width: 104px;
   width: max-content;
   padding: 7px 14px;
@@ -339,52 +366,15 @@ button:hover {
     linear-gradient(90deg, rgba(228, 93, 66, 0.025) 1px, transparent 1px),
     rgba(25, 12, 8, 0.9);
 }
-.activity-drawer {
-  border-top: 2px solid var(--gold-dim);
-  background: rgba(7, 20, 12, 0.96);
-}
-.activity-toggle {
-  width: 100%;
-  min-height: 42px;
-  border: 0;
-  border-radius: var(--radius);
-  color: var(--gold-bright);
-  text-align: left;
-}
-.activity-toggle::after {
-  content: " +";
-}
-.activity-toggle[aria-expanded="true"]::after {
-  content: " -";
-}
-.activity-panel {
-  display: none;
-  padding: 16px 22px 22px;
-}
-.activity-panel.open {
-  display: block;
-}
-pre {
-  max-height: 220px;
-  min-height: 150px;
-  margin: 14px 0 0;
-  padding: 18px;
-  overflow: auto;
-  color: #a9bea9;
-  white-space: pre-wrap;
-  font-family: var(--font-mono);
-  font-size: 0.98rem;
-  line-height: 1.55;
-}
+/* Activity drawer rules live in activity-drawer.css to keep this file under the
+   400-line project ceiling. */
+
 @media (max-width: 960px) {
-  body {
-    min-width: 0;
-  }
   .shell {
     width: min(100vw - 24px, 860px);
     padding: 14px 0;
   }
-  .topbar, .section-heading, .setup-path-panel {
+  .section-heading, .setup-path-panel {
     grid-template-columns: 1fr;
     align-items: stretch;
     flex-direction: column;

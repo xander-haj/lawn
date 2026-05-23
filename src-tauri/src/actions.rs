@@ -76,7 +76,10 @@ pub fn clone_project(scan_root: Option<String>) -> Result<ActionResult, String> 
     )
 }
 
-// Clones a user-provided GitHub repository URL into the active scan root with fixed git arguments.
+// Clones a user-provided GitHub repository URL into a nested {scan_root}/{owner}/{repo}
+// layout so multiple forks that share a repo name (e.g. john/zelda3 and steve/zelda3) can
+// coexist beside the launcher without colliding. The canonical Z3R clone stays flat at
+// {scan_root}/Z3R — only the custom clone path nests under an owner segment.
 #[tauri::command]
 pub fn clone_custom_project(
     repo_url: String,
@@ -84,8 +87,9 @@ pub fn clone_custom_project(
 ) -> Result<ActionResult, String> {
     let parent = resolve_scan_root(scan_root)?;
     let normalized_url = normalize_github_url(&repo_url)?;
-    let folder_name = github_repo_folder_name(&normalized_url)?;
-    let target = parent.join(&folder_name);
+    let (owner, repo) = github_repo_owner_and_name(&normalized_url)?;
+    let owner_dir = parent.join(&owner);
+    let target = owner_dir.join(&repo);
 
     if target.exists() {
         return Err(format!(
@@ -94,9 +98,19 @@ pub fn clone_custom_project(
         ));
     }
 
+    // Pre-create the owner folder so git can write into a clean leaf. create_dir_all is a
+    // no-op when the owner folder already exists from a previous fork clone under the
+    // same owner, which is exactly the multi-fork case this feature is designed for.
+    fs::create_dir_all(&owner_dir)
+        .map_err(|error| format!("Could not create owner folder {}: {error}", display_path(&owner_dir)))?;
+
+    // Pass the relative "{owner}/{repo}" target to git so the cwd stays at the scan root.
+    // Matches how clone_project keeps its working directory at the parent.
+    let relative_target = format!("{owner}/{repo}");
+
     run_command(
         "git",
-        &["clone", "--recursive", &normalized_url, &folder_name],
+        &["clone", "--recursive", &normalized_url, &relative_target],
         &parent,
         "Custom clone complete.",
     )
@@ -136,7 +150,8 @@ pub fn install_dependencies(project_path: String) -> Result<ActionResult, String
     )
 }
 
-// Runs the repository asset extraction through the venv Python executable.
+// Runs asset extraction through the venv Python and then compiles the platform executable
+// so a single Build assets press produces both zelda3_assets.dat and the runnable binary.
 #[tauri::command]
 pub fn extract_assets(project_path: String) -> Result<ActionResult, String> {
     let project = PathBuf::from(project_path);
@@ -144,19 +159,42 @@ pub fn extract_assets(project_path: String) -> Result<ActionResult, String> {
         .or_else(|| venv_python(&project.join("venv")))
         .ok_or_else(|| "Create a venv before extracting assets.".to_string())?;
 
-    run_command(
+    // Stage 1: extract resources and compile zelda3_assets.dat via restool.py.
+    let extract = run_command(
         &display_path(&python),
         &["assets/restool.py", "--extract-from-rom"],
         &project,
         "Asset extraction complete.",
-    )
+    )?;
+
+    // Surface the extract failure as-is so the user sees restool's stderr and stops here.
+    if !extract.ok {
+        return Ok(extract);
+    }
+
+    // Stage 2: compile the platform executable so the project becomes Play-ready.
+    let build = build_executable(&project)?;
+    let combined_stdout = join_stage_output(&extract.stdout, &build.stdout);
+    let combined_stderr = join_stage_output(&extract.stderr, &build.stderr);
+
+    // Name the failing stage when the build step fails so the user knows which output to read.
+    let message = if build.ok {
+        "Asset extraction and build complete.".to_string()
+    } else {
+        format!("Build step failed after asset extraction: {}", build.message)
+    };
+
+    Ok(ActionResult {
+        ok: build.ok,
+        message,
+        stdout: combined_stdout,
+        stderr: combined_stderr,
+    })
 }
 
-// Builds the selected project using TCC on prepared Windows folders or make elsewhere.
-#[tauri::command]
-pub fn build_project(project_path: String) -> Result<ActionResult, String> {
-    let project = PathBuf::from(project_path);
-
+// Compiles the selected project using TCC on prepared Windows folders or make elsewhere.
+// Kept crate-private because extract_assets is now the only caller; no Tauri command is exposed.
+fn build_executable(project: &Path) -> Result<ActionResult, String> {
     if cfg!(target_os = "windows") {
         if project
             .join("third_party")
@@ -164,13 +202,13 @@ pub fn build_project(project_path: String) -> Result<ActionResult, String> {
             .join("tcc.exe")
             .is_file()
         {
-            return run_tcc_build(&project);
+            return run_tcc_build(project);
         }
 
         return run_command(
             "msbuild",
             &["Zelda3.sln", "/p:Configuration=Release", "/p:Platform=x64"],
-            &project,
+            project,
             "Visual Studio build complete.",
         );
     }
@@ -179,7 +217,18 @@ pub fn build_project(project_path: String) -> Result<ActionResult, String> {
         .map(|count| count.get().to_string())
         .unwrap_or_else(|_| "2".to_string());
     let job_arg = format!("-j{jobs}");
-    run_command("make", &[job_arg.as_str()], &project, "Build complete.")
+    run_command("make", &[job_arg.as_str()], project, "Build complete.")
+}
+
+// Concatenates two stage outputs with a blank line between them, skipping empties so the UI log
+// does not show stray separators when one stage produced no output on a given stream.
+fn join_stage_output(first: &str, second: &str) -> String {
+    match (first.is_empty(), second.is_empty()) {
+        (true, true) => String::new(),
+        (false, true) => first.to_string(),
+        (true, false) => second.to_string(),
+        (false, false) => format!("{first}\n{second}"),
+    }
 }
 
 // Builds through TCC without calling run_with_tcc.bat because that batch also launches the game and pauses.
@@ -195,8 +244,15 @@ fn run_tcc_build(project: &Path) -> Result<ActionResult, String> {
         return Err("SDL2.dll was not found under third_party\\SDL2-2.26.3\\lib\\x64.".to_string());
     }
 
-    let command = "third_party\\tcc\\tcc.exe -ozelda3.exe -DCOMPILER_TCC=1 -DSTBI_NO_SIMD=1 -DHAVE_STDINT_H=1 -D_HAVE_STDINT_H=1 -DSYSTEM_VOLUME_MIXER_AVAILABLE=0 -Ithird_party\\SDL2-2.26.3\\include -Lthird_party\\SDL2-2.26.3\\lib\\x64 -lSDL2 -I. src\\*.c snes\\*.c third_party\\gl_core\\gl_core_3_1.c third_party\\opus-1.3.1-stripped\\opus_decoder_amalgam.c";
-    let mut result = run_command("cmd", &["/C", command], project, "TCC build complete.")?;
+    let command = [
+        "third_party\\tcc\\tcc.exe -ozelda3.exe -DCOMPILER_TCC=1 -DSTBI_NO_SIMD=1",
+        "-DHAVE_STDINT_H=1 -D_HAVE_STDINT_H=1 -DSYSTEM_VOLUME_MIXER_AVAILABLE=0",
+        "-Ithird_party\\SDL2-2.26.3\\include -Lthird_party\\SDL2-2.26.3\\lib\\x64 -lSDL2",
+        "-I. src\\*.c snes\\*.c third_party\\gl_core\\gl_core_3_1.c",
+        "third_party\\opus-1.3.1-stripped\\opus_decoder_amalgam.c",
+    ]
+    .join(" ");
+    let mut result = run_command("cmd", &["/C", &command], project, "TCC build complete.")?;
 
     if result.ok {
         fs::copy(&sdl_dll, project.join("SDL2.dll"))
@@ -226,15 +282,17 @@ fn normalize_github_url(repo_url: &str) -> Result<String, String> {
     Ok(trimmed.trim_end_matches('/').to_string())
 }
 
-// Derives the destination folder from an owner/repo GitHub URL after URL validation succeeds.
-fn github_repo_folder_name(repo_url: &str) -> Result<String, String> {
+// Derives owner and repo from a validated owner/repo GitHub URL. Both segments are run
+// through the same filesystem-safe character whitelist so the nested {owner}/{repo}
+// destination cannot contain shell- or path-hostile characters.
+fn github_repo_owner_and_name(repo_url: &str) -> Result<(String, String), String> {
     let repo_part = repo_url
         .trim_start_matches("https://github.com/")
         .split(['?', '#'])
         .next()
         .unwrap_or_default();
     let mut parts = repo_part.split('/');
-    let owner = parts.next().unwrap_or_default();
+    let owner = parts.next().unwrap_or_default().to_string();
     let repo = parts
         .next()
         .unwrap_or_default()
@@ -247,21 +305,34 @@ fn github_repo_folder_name(repo_url: &str) -> Result<String, String> {
         );
     }
 
-    if !repo
-        .chars()
-        .all(|character| character.is_ascii_alphanumeric() || matches!(character, '.' | '_' | '-'))
-    {
+    // Same character set for both segments: ascii alphanumerics plus . _ - keeps us safe
+    // on every supported OS without rejecting normal GitHub names.
+    if !is_safe_segment(&owner) {
+        return Err(
+            "The owner name contains characters this launcher cannot use for a folder."
+                .to_string(),
+        );
+    }
+
+    if !is_safe_segment(&repo) {
         return Err(
             "The repository name contains characters this launcher cannot use for a folder."
                 .to_string(),
         );
     }
 
-    Ok(repo)
+    Ok((owner, repo))
+}
+
+// Reusable filesystem-safe segment check shared by the owner and repo validators.
+fn is_safe_segment(segment: &str) -> bool {
+    segment
+        .chars()
+        .all(|character| character.is_ascii_alphanumeric() || matches!(character, '.' | '_' | '-'))
 }
 
 // Executes a fixed command in a fixed working directory and captures output for the UI log.
-fn run_command(
+pub(crate) fn run_command(
     program: &str,
     args: &[&str],
     cwd: &Path,

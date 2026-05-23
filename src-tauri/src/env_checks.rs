@@ -24,6 +24,7 @@ pub fn check_environment(
         check_python(),
         check_venv(project.as_deref()),
         check_python_dependencies(project.as_deref()),
+        check_rom(project.as_deref()),
     ];
 
     if cfg!(target_os = "windows") {
@@ -137,6 +138,35 @@ fn check_python_dependencies(project_path: Option<&Path>) -> EnvironmentCheck {
         &["-c", "import PIL, yaml"],
         "Install dependencies with the venv before extracting assets.",
     )
+}
+
+// Checks whether the selected project root contains the user-supplied US ROM file.
+// The launcher gates Build assets on this because `restool.py --extract-from-rom` requires it.
+fn check_rom(project_path: Option<&Path>) -> EnvironmentCheck {
+    let Some(project_path) = project_path else {
+        return EnvironmentCheck {
+            id: "rom".to_string(),
+            label: "Game ROM (zelda3.sfc)".to_string(),
+            state: "unknown".to_string(),
+            detail: "Select or clone a Z3R folder before checking the ROM.".to_string(),
+        };
+    };
+    let rom_path = project_path.join("zelda3.sfc");
+
+    if rom_path.is_file() {
+        return ok_check(
+            "rom",
+            "Game ROM (zelda3.sfc)",
+            &format!("Found {}", display_path(&rom_path)),
+        );
+    }
+
+    EnvironmentCheck {
+        id: "rom".to_string(),
+        label: "Game ROM (zelda3.sfc)".to_string(),
+        state: "missing".to_string(),
+        detail: "Place your legally obtained US ROM as zelda3.sfc in the Z3R folder.".to_string(),
+    }
 }
 
 // Checks Visual Studio and TCC-oriented Windows build prerequisites.
