@@ -6,9 +6,11 @@ mod env_checks;
 // Owns line-preserving read/write of project-local zelda3.ini files for the per-card
 // aspect ratio widget and the Controls screen.
 mod ini_config;
+mod makefile_patches;
 mod models;
 mod paths;
 mod randomizer;
+mod rom_storage;
 
 // Starts Tauri and exposes only the launcher commands that the frontend needs.
 pub fn run() {
@@ -24,6 +26,11 @@ pub fn run() {
             actions::create_venv,
             actions::install_dependencies,
             actions::extract_assets,
+            makefile_patches::apply_snesrev_makefile_patch,
+            rom_storage::stored_rom_status,
+            rom_storage::choose_and_store_rom,
+            rom_storage::open_stored_rom_folder,
+            rom_storage::sync_stored_rom_to_projects,
             randomizer::read_randomizer_setup,
             randomizer::extract_randomizer_assets,
             randomizer::run_randomizer,

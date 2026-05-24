@@ -29,7 +29,7 @@ async function runEnvironmentChecks(helpers) {
   const { state, elements, call } = helpers;
   const report = await call("check_environment", {
     projectPath: state.selectedPath,
-    scanRoot: state.scanRoot,
+    scanRoot: null,
   });
   state.environmentOs = report.os;
   renderChecks(report.checks, helpers);

@@ -6,11 +6,12 @@
     <title>Z3R Launcher</title>
     <link rel="stylesheet" href="./styles.css" />
     <link rel="stylesheet" href="./activity-drawer.css" />
+    <link rel="stylesheet" href="./project-cards.css" />
     <link rel="stylesheet" href="./card-aspect-ratio.css" />
     <link rel="stylesheet" href="./controls-screen.css" />
     <link rel="stylesheet" href="./controller-overlay.css" />
     <link rel="stylesheet" href="./manual-guides.css" />
-    <link rel="stylesheet" href="./custom-clone.css" />
+    <link rel="stylesheet" href="./scan-path-manager.css" />
     <link rel="stylesheet" href="./randomizer-setup.css" />
   </head>
   <body>
@@ -21,10 +22,8 @@
         </div>
         <div class="topbar-actions">
           <button id="backButton" class="secondary-button hidden" type="button">Back to home</button>
-          <button id="chooseRootButton" class="secondary-button" type="button">Choose Folder</button>
-          <button id="defaultRootButton" class="secondary-button" type="button">Use Default</button>
-          <button id="cloneButton" class="primary-button" type="button">Clone Z3R</button>
-          <button id="customCloneButton" class="primary-button" type="button">Clone Custom</button>
+          <button id="uploadRomButton" class="secondary-button" type="button">Upload SFC</button>
+          <button id="scanPathButton" class="secondary-button" type="button" disabled>Repos</button>
           <button id="refreshButton" class="icon-button" type="button" title="Refresh scan">↻</button>
         </div>
       </section>
@@ -37,7 +36,7 @@
               <p id="parentPath" class="hidden"></p>
             </div>
           </div>
-          <div id="projectList" class="project-grid"></div>
+          <div id="projectList" class="project-sections"></div>
         </section>
 
         <section id="environmentPanel" class="view-panel" data-view="environment" aria-label="Setup and environment">
@@ -211,26 +210,50 @@
       </section>
     </main>
 
-    <dialog id="customCloneDialog" class="custom-clone-dialog" aria-labelledby="customCloneTitle">
-      <form id="customCloneForm" method="dialog">
-        <div class="custom-clone-copy">
-          <p class="eyebrow">Custom repository</p>
-          <h2 id="customCloneTitle">Clone Custom</h2>
-          <p>Paste only the GitHub repository URL. Do not paste a git clone command from the GitHub page.</p>
+    <dialog id="scanPathDialog" class="scan-path-dialog" aria-labelledby="scanPathTitle">
+      <form id="scanPathForm" method="dialog">
+        <div class="scan-path-copy">
+          <p class="eyebrow">Repos</p>
+          <h2 id="scanPathTitle">Repo Paths</h2>
         </div>
-        <label class="custom-clone-field">
-          <span>GitHub URL</span>
-          <input
-            id="customCloneUrl"
-            type="url"
-            placeholder="https://github.com/owner/repo"
-            autocomplete="off"
-            required
-          />
-        </label>
-        <div class="custom-clone-actions">
-          <button id="customCloneCancelButton" class="secondary-button" type="button">Cancel</button>
-          <button id="customCloneSubmitButton" class="primary-button" type="submit">Clone</button>
+        <div class="repo-tabs" role="tablist" aria-label="Repo manager sections">
+          <button id="scanPathsTabButton" class="repo-tab-button active" type="button">Scan Paths</button>
+          <button id="cloneTabButton" class="repo-tab-button" type="button">Clone</button>
+        </div>
+        <div id="scanPathsTabPanel" class="repo-tab-panel active">
+          <div class="scan-path-entry">
+            <label class="scan-path-field">
+              <span>Folder path</span>
+              <input id="scanPathInput" type="text" autocomplete="off" />
+            </label>
+            <button id="scanPathSelectButton" class="secondary-button" type="button">Select</button>
+            <button id="scanPathAddButton" class="primary-button" type="submit">Add</button>
+          </div>
+          <div id="scanPathList" class="scan-path-list" aria-label="Added scan paths"></div>
+        </div>
+        <div id="cloneTabPanel" class="repo-tab-panel">
+          <div class="clone-path-row">
+            <label class="scan-path-field">
+              <span>Clone destination</span>
+              <select id="clonePathSelect"></select>
+            </label>
+            <button id="cloneZ3RModalButton" class="primary-button" type="button">Clone Z3R</button>
+          </div>
+          <div class="clone-custom-row">
+            <label class="scan-path-field">
+              <span>GitHub URL</span>
+              <input
+                id="cloneCustomUrl"
+                type="url"
+                placeholder="https://github.com/owner/repo"
+                autocomplete="off"
+              />
+            </label>
+            <button id="cloneCustomModalButton" class="primary-button" type="button">Clone Custom</button>
+          </div>
+        </div>
+        <div class="scan-path-actions">
+          <button id="scanPathCloseButton" class="secondary-button" type="button">Close</button>
         </div>
       </form>
     </dialog>

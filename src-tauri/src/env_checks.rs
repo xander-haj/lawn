@@ -165,7 +165,7 @@ fn check_rom(project_path: Option<&Path>) -> EnvironmentCheck {
         id: "rom".to_string(),
         label: "Game ROM (zelda3.sfc)".to_string(),
         state: "missing".to_string(),
-        detail: "Place your legally obtained US ROM as zelda3.sfc in the Z3R folder.".to_string(),
+        detail: "Upload your SFC in the launcher, or place it as zelda3.sfc in the Z3R folder.".to_string(),
     }
 }
 

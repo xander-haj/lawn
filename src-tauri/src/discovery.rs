@@ -1,21 +1,75 @@
 // This module scans folders beside the launcher and classifies Z3R projects by
 // runtime readiness.
-use crate::models::{AppScan, ProjectCandidate};
+use crate::makefile_patches::has_snesrev_makefile_patch;
+use crate::models::{AppScan, ProjectCandidate, ProjectScanGroup};
 use crate::paths::{display_path, resolve_scan_root};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-// Scans sibling folders and reports whether each one looks ready to launch or build.
+// Scans the default root plus any user-added roots and groups results by source path.
+// The flat candidates list is retained for existing selected-project logic, while
+// groups drive the home-screen section display in the same order the frontend sends.
+#[tauri::command]
+pub fn scan_siblings(scan_roots: Option<Vec<String>>) -> Result<AppScan, String> {
+    let default_root = resolve_scan_root(None)?;
+    let roots = ordered_scan_roots(&default_root, scan_roots.unwrap_or_default())?;
+    let mut groups = Vec::new();
+    let mut candidates = Vec::new();
+
+    for (index, root) in roots.iter().enumerate() {
+        let group_candidates = scan_root(root)?;
+        candidates.extend(group_candidates.iter().cloned());
+        groups.push(ProjectScanGroup {
+            label: scan_root_label(root),
+            path: display_path(root),
+            is_default: index == 0,
+            candidates: group_candidates,
+        });
+    }
+
+    Ok(AppScan {
+        launcher_parent: display_path(&default_root),
+        candidates,
+        groups,
+    })
+}
+
+// Builds the scan root list with the launcher default first and user-added paths after it.
+fn ordered_scan_roots(default_root: &Path, added_roots: Vec<String>) -> Result<Vec<PathBuf>, String> {
+    let mut roots = vec![default_root.to_path_buf()];
+
+    for root in added_roots {
+        let path = PathBuf::from(root);
+
+        if !roots.iter().any(|existing| existing == &path) {
+            roots.push(path);
+        }
+    }
+
+    Ok(roots)
+}
+
+// Uses only the direct folder name as the group label, with a path fallback for root paths.
+fn scan_root_label(path: &Path) -> String {
+    path.file_name()
+        .map(|name| name.to_string_lossy().to_string())
+        .unwrap_or_else(|| display_path(path))
+}
+
+// Scans one root and reports whether each child looks ready to launch or build.
 // Direct children are inspected first; any direct child that is not itself a project is
 // descended into exactly one level to support the nested {parent}/{owner}/{repo} layout
 // produced by clone_custom_project for multi-fork installs.
-#[tauri::command]
-pub fn scan_siblings(scan_root: Option<String>) -> Result<AppScan, String> {
-    let parent = resolve_scan_root(scan_root)?;
+fn scan_root(parent: &Path) -> Result<Vec<ProjectCandidate>, String> {
     let mut candidates = Vec::new();
 
-    for entry in
-        fs::read_dir(&parent).map_err(|error| format!("Could not scan launcher parent: {error}"))?
+    // Missing pasted paths should not break the whole launcher; they simply scan empty.
+    if !parent.is_dir() {
+        return Ok(candidates);
+    }
+
+    for entry in fs::read_dir(parent)
+        .map_err(|error| format!("Could not scan {}: {error}", display_path(parent)))?
     {
         let entry =
             entry.map_err(|error| format!("Could not read a sibling folder entry: {error}"))?;
@@ -40,11 +94,7 @@ pub fn scan_siblings(scan_root: Option<String>) -> Result<AppScan, String> {
     }
 
     candidates.sort_by(|left, right| left.name.cmp(&right.name));
-
-    Ok(AppScan {
-        launcher_parent: display_path(&parent),
-        candidates,
-    })
+    Ok(candidates)
 }
 
 // Treats a non-project direct child of the scan root as a potential owner folder and
@@ -95,7 +145,13 @@ fn inspect_candidate(path: &Path, owner: Option<String>) -> Option<ProjectCandid
             if executable.parent() == asset.parent() {
                 "ready".to_string()
             } else {
-                notes.push("Executable and zelda3_assets.dat are not beside each other; use a deploy build or copy assets beside the executable.".to_string());
+                notes.push(
+                    concat!(
+                        "Executable and zelda3_assets.dat are not beside each other; ",
+                        "use a deploy build or copy assets beside the executable."
+                    )
+                    .to_string(),
+                );
                 "needs-deploy-copy".to_string()
             }
         }
@@ -103,6 +159,14 @@ fn inspect_candidate(path: &Path, owner: Option<String>) -> Option<ProjectCandid
         (None, Some(_)) => "missing-assets".to_string(),
         (None, None) => "source-only".to_string(),
     };
+
+    let snesrev_makefile_patch_applied = owner.as_deref().is_some_and(|owner| {
+        owner.eq_ignore_ascii_case("snesrev")
+            && path
+                .file_name()
+                .is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("zelda3"))
+            && has_snesrev_makefile_patch(path)
+    });
 
     Some(ProjectCandidate {
         name: path
@@ -113,6 +177,7 @@ fn inspect_candidate(path: &Path, owner: Option<String>) -> Option<ProjectCandid
         path: display_path(path),
         asset_path: asset_path.as_deref().map(display_path),
         executable_path: executable_path.as_deref().map(display_path),
+        snesrev_makefile_patch_applied,
         status,
         notes,
     })

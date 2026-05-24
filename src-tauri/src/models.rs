@@ -6,9 +6,20 @@ use serde::{Deserialize, Serialize};
 pub struct AppScan {
     pub launcher_parent: String,
     pub candidates: Vec<ProjectCandidate>,
+    pub groups: Vec<ProjectScanGroup>,
 }
 
+// One ordered scan section returned to the home screen. The frontend uses these
+// groups to render the same top-down order that the path manager stores.
 #[derive(Serialize)]
+pub struct ProjectScanGroup {
+    pub label: String,
+    pub path: String,
+    pub is_default: bool,
+    pub candidates: Vec<ProjectCandidate>,
+}
+
+#[derive(Clone, Serialize)]
 pub struct ProjectCandidate {
     pub name: String,
     // Set when the project was discovered inside a nested {owner}/{repo} layout used by
@@ -17,6 +28,7 @@ pub struct ProjectCandidate {
     pub path: String,
     pub asset_path: Option<String>,
     pub executable_path: Option<String>,
+    pub snesrev_makefile_patch_applied: bool,
     pub status: String,
     pub notes: Vec<String>,
 }
@@ -43,6 +55,15 @@ pub struct ActionResult {
     pub message: String,
     pub stdout: String,
     pub stderr: String,
+}
+
+// Launcher-managed ROM storage status returned to the home screen.
+#[derive(Serialize)]
+pub struct RomStatus {
+    pub available: bool,
+    pub file_name: Option<String>,
+    pub path: Option<String>,
+    pub storage_dir: String,
 }
 
 #[derive(Serialize)]

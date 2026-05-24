@@ -1,6 +1,7 @@
 // This module performs user-triggered actions with fixed commands and arguments.
 use crate::models::ActionResult;
 use crate::paths::{display_path, resolve_scan_root, venv_python, Z3R_REPO_URL};
+use crate::rom_storage::copy_stored_rom_to_project;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -57,7 +58,10 @@ pub async fn choose_scan_root(app: tauri::AppHandle) -> Result<Option<String>, S
 
 // Clones Xander's Z3R repository into the active scan root when the user requests it.
 #[tauri::command]
-pub fn clone_project(scan_root: Option<String>) -> Result<ActionResult, String> {
+pub fn clone_project(
+    app: tauri::AppHandle,
+    scan_root: Option<String>,
+) -> Result<ActionResult, String> {
     let parent = resolve_scan_root(scan_root)?;
     let target = parent.join("Z3R");
 
@@ -68,12 +72,15 @@ pub fn clone_project(scan_root: Option<String>) -> Result<ActionResult, String> 
         ));
     }
 
-    run_command(
+    let mut result = run_command(
         "git",
         &["clone", "--recursive", Z3R_REPO_URL, "Z3R"],
         &parent,
         "Clone complete.",
-    )
+    )?;
+
+    attach_rom_copy_message(&app, &target, &mut result)?;
+    Ok(result)
 }
 
 // Clones a user-provided GitHub repository URL into a nested {scan_root}/{owner}/{repo}
@@ -82,6 +89,7 @@ pub fn clone_project(scan_root: Option<String>) -> Result<ActionResult, String> 
 // {scan_root}/Z3R — only the custom clone path nests under an owner segment.
 #[tauri::command]
 pub fn clone_custom_project(
+    app: tauri::AppHandle,
     repo_url: String,
     scan_root: Option<String>,
 ) -> Result<ActionResult, String> {
@@ -108,12 +116,15 @@ pub fn clone_custom_project(
     // Matches how clone_project keeps its working directory at the parent.
     let relative_target = format!("{owner}/{repo}");
 
-    run_command(
+    let mut result = run_command(
         "git",
         &["clone", "--recursive", &normalized_url, &relative_target],
         &parent,
         "Custom clone complete.",
-    )
+    )?;
+
+    attach_rom_copy_message(&app, &target, &mut result)?;
+    Ok(result)
 }
 
 // Creates a project-local Python virtual environment without installing packages.
@@ -261,6 +272,25 @@ fn run_tcc_build(project: &Path) -> Result<ActionResult, String> {
     }
 
     Ok(result)
+}
+
+// Adds clone-time ROM copy results to the command message while leaving failed clones untouched.
+fn attach_rom_copy_message(
+    app: &tauri::AppHandle,
+    project_path: &Path,
+    result: &mut ActionResult,
+) -> Result<(), String> {
+    if !result.ok {
+        return Ok(());
+    }
+
+    let clone_message = result.message.clone();
+    result.message = match copy_stored_rom_to_project(app, project_path)? {
+        Some(path) => format!("{clone_message} SFC copied to {}.", display_path(&path)),
+        None => format!("{clone_message} No uploaded SFC is available to copy yet."),
+    };
+
+    Ok(())
 }
 
 // Accepts only plain GitHub HTTPS repository URLs so text input cannot become shell syntax.

@@ -1,20 +1,27 @@
 // Launcher bootstrap module. Owns shared state, the Tauri invoker wrapper, view
 // switching, and top-bar button wiring. Per-screen DOM building lives in dedicated
 // modules so this file stays focused on app-wide concerns.
-import { connectCustomCloneDialog } from "./custom-clone.js";
 import { loadManualInstallGuides } from "./manual-guides.js";
 import { connectRandomizerSetup } from "./randomizer-setup.js";
 import { connectProjectCards } from "./project-cards.js";
 import { connectEnvironmentScreen } from "./environment-screen.js";
 import { connectControlsScreen } from "./controls-screen.js";
+import {
+  connectScanPathManager,
+  loadStoredClonePath,
+  loadStoredScanPaths,
+} from "./scan-path-manager.js";
 const { invoke } = window.__TAURI__.core;
 
 // App-wide mutable state. Each screen module reads from this through the helpers bag
-// so there is exactly one source of truth for the selected project, scan root, etc.
+// so there is exactly one source of truth for the selected project, scan paths, etc.
 const state = {
   candidates: [],
+  scanGroups: [],
   selectedPath: null,
-  scanRoot: null,
+  scanPaths: loadStoredScanPaths(),
+  clonePath: loadStoredClonePath(),
+  hasStoredRom: false,
   activeView: "builds",
   environmentOs: "macos",
   setupGuidance: null,
@@ -36,15 +43,23 @@ const elements = {
   activityToggle: document.querySelector("#activityToggle"),
   activityPanel: document.querySelector("#activityPanel"),
   refreshButton: document.querySelector("#refreshButton"),
-  chooseRootButton: document.querySelector("#chooseRootButton"),
-  defaultRootButton: document.querySelector("#defaultRootButton"),
-  cloneButton: document.querySelector("#cloneButton"),
-  customCloneButton: document.querySelector("#customCloneButton"),
-  customCloneDialog: document.querySelector("#customCloneDialog"),
-  customCloneForm: document.querySelector("#customCloneForm"),
-  customCloneUrl: document.querySelector("#customCloneUrl"),
-  customCloneCancelButton: document.querySelector("#customCloneCancelButton"),
-  customCloneSubmitButton: document.querySelector("#customCloneSubmitButton"),
+  scanPathButton: document.querySelector("#scanPathButton"),
+  uploadRomButton: document.querySelector("#uploadRomButton"),
+  scanPathDialog: document.querySelector("#scanPathDialog"),
+  scanPathForm: document.querySelector("#scanPathForm"),
+  scanPathInput: document.querySelector("#scanPathInput"),
+  scanPathSelectButton: document.querySelector("#scanPathSelectButton"),
+  scanPathAddButton: document.querySelector("#scanPathAddButton"),
+  scanPathList: document.querySelector("#scanPathList"),
+  scanPathCloseButton: document.querySelector("#scanPathCloseButton"),
+  scanPathsTabButton: document.querySelector("#scanPathsTabButton"),
+  cloneTabButton: document.querySelector("#cloneTabButton"),
+  scanPathsTabPanel: document.querySelector("#scanPathsTabPanel"),
+  cloneTabPanel: document.querySelector("#cloneTabPanel"),
+  clonePathSelect: document.querySelector("#clonePathSelect"),
+  cloneZ3RModalButton: document.querySelector("#cloneZ3RModalButton"),
+  cloneCustomUrl: document.querySelector("#cloneCustomUrl"),
+  cloneCustomModalButton: document.querySelector("#cloneCustomModalButton"),
   backButton: document.querySelector("#backButton"),
   checkButton: document.querySelector("#checkButton"),
   guideBackButton: document.querySelector("#guideBackButton"),
@@ -74,9 +89,8 @@ async function call(command, payload = {}) {
 }
 
 // View switching toggles the .active class on the matching panel. The Back to home
-// button is hidden on the home view; the global topbar actions (Choose Folder, Use
-// Default, Clone Z3R, Clone Custom) are home-only since they operate on the scan root
-// or create new project folders, neither of which makes sense from a sub-screen.
+// button is hidden on the home view; the global topbar actions are home-only
+// because they operate on ROM storage, scan paths, or new project folders.
 function showView(view) {
   state.activeView = view;
   for (const panel of elements.viewPanels) {
@@ -84,10 +98,8 @@ function showView(view) {
   }
   const onHome = view === "builds";
   elements.backButton.classList.toggle("hidden", onHome);
-  elements.chooseRootButton.classList.toggle("hidden", !onHome);
-  elements.defaultRootButton.classList.toggle("hidden", !onHome);
-  elements.cloneButton.classList.toggle("hidden", !onHome);
-  elements.customCloneButton.classList.toggle("hidden", !onHome);
+  elements.scanPathButton.classList.toggle("hidden", !onHome);
+  elements.uploadRomButton.classList.toggle("hidden", !onHome);
 
   // Refresh the per-view content lazily so screens always reflect on-disk truth.
   if (view === "controls") {
@@ -146,9 +158,20 @@ function selectedProjectPayload() {
 // Re-runs the backend sibling scan, keeps the selected project alive when it still
 // exists, and repaints the card grid and environment screen.
 async function refreshScan() {
-  const scan = await call("scan_siblings", { scanRoot: state.scanRoot });
+  const scan = await call("scan_siblings", { scanRoots: state.scanPaths });
   state.candidates = scan.candidates;
+  state.scanGroups = scan.groups ?? [];
   elements.parentPath.textContent = "";
+
+  if (state.hasStoredRom && state.candidates.length > 0) {
+    const result = await call("sync_stored_rom_to_projects", {
+      projectPaths: state.candidates.map((candidate) => candidate.path),
+    });
+
+    if (result.stdout) {
+      log(`SFC copied to:\n${result.stdout}`);
+    }
+  }
 
   if (!state.candidates.some((candidate) => candidate.path === state.selectedPath)) {
     state.selectedPath = state.candidates[0]?.path ?? null;
@@ -156,6 +179,15 @@ async function refreshScan() {
 
   projectCards.render();
   await environmentScreen.runChecks();
+}
+
+// Refreshes the launcher-managed ROM status independently from project scanning.
+async function refreshRomStatus() {
+  const status = await call("stored_rom_status");
+  state.hasStoredRom = status.available;
+  elements.uploadRomButton.textContent = status.available ? "Open SFC Folder" : "Upload SFC";
+  elements.scanPathButton.disabled = !status.available;
+  elements.scanPathButton.title = status.available ? "" : "Upload an SFC before managing repos.";
 }
 
 // Loads the editable Setup Path JSON so step copy can change without Rust edits.
@@ -195,6 +227,7 @@ const helpers = {
 const projectCards = connectProjectCards(helpers);
 const environmentScreen = connectEnvironmentScreen(helpers);
 const controlsScreen = connectControlsScreen(helpers);
+connectScanPathManager(helpers);
 
 elements.refreshButton.addEventListener("click", refreshScan);
 elements.backButton.addEventListener("click", () => showView("builds"));
@@ -204,35 +237,26 @@ elements.activityToggle.addEventListener("click", () => {
   elements.activityToggle.setAttribute("aria-expanded", String(isOpen));
 });
 elements.checkButton.addEventListener("click", environmentScreen.runChecks);
-elements.chooseRootButton.addEventListener("click", async () => {
-  elements.chooseRootButton.disabled = true;
+elements.uploadRomButton.addEventListener("click", async () => {
+  elements.uploadRomButton.disabled = true;
 
   try {
-    const selectedRoot = await call("choose_scan_root");
+    if (state.hasStoredRom) {
+      const result = await call("open_stored_rom_folder");
+      log(result.message);
+      return;
+    }
 
-    if (selectedRoot) {
-      state.scanRoot = selectedRoot;
-      state.selectedPath = null;
-      log(`Scan root set to ${selectedRoot}`);
+    const status = await call("choose_and_store_rom");
+
+    if (status) {
+      log(`SFC stored at ${status.path}`);
+      await refreshRomStatus();
       await refreshScan();
     }
   } finally {
-    elements.chooseRootButton.disabled = false;
+    elements.uploadRomButton.disabled = false;
   }
-});
-elements.defaultRootButton.addEventListener("click", async () => {
-  state.scanRoot = null;
-  state.selectedPath = null;
-  log("Scan root reset to the launcher default.");
-  await refreshScan();
-});
-elements.cloneButton.addEventListener("click", () => runAction("clone_project", { scanRoot: state.scanRoot }));
-connectCustomCloneDialog({
-  elements,
-  getScanRoot: () => state.scanRoot,
-  call,
-  log,
-  refreshScan,
 });
 connectRandomizerSetup({
   state,
@@ -267,4 +291,5 @@ elements.extractButton.addEventListener("click", () => {
 showView(state.activeView);
 await loadSetupGuidance();
 await loadGuideContent();
+await refreshRomStatus();
 refreshScan();

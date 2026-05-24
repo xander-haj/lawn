@@ -19,7 +19,7 @@ export function connectProjectCards(helpers) {
   };
 }
 
-// Replaces the project list with one card per candidate, or an empty-state card.
+// Replaces the project list with one section per scan path, or an empty-state card.
 function renderProjectList(helpers) {
   const { elements, state } = helpers;
   elements.projectList.textContent = "";
@@ -29,20 +29,42 @@ function renderProjectList(helpers) {
     return;
   }
 
-  for (const candidate of state.candidates) {
-    elements.projectList.append(buildProjectCard(candidate, helpers));
+  for (const group of state.scanGroups) {
+    if ((group.candidates ?? []).length === 0) {
+      continue;
+    }
+
+    elements.projectList.append(buildScanGroup(group, helpers));
   }
 }
 
+// Builds one visual section per scan path so users can distinguish which root found each repo.
+function buildScanGroup(group, helpers) {
+  const section = document.createElement("section");
+  section.className = "scan-group";
+  section.innerHTML = `<h3 class="scan-group-title">${escapeHtml(group.label)}</h3>`;
+
+  const grid = document.createElement("div");
+  grid.className = "project-grid";
+
+  for (const candidate of group.candidates) {
+    grid.append(buildProjectCard(candidate, helpers));
+  }
+
+  section.append(grid);
+  return section;
+}
+
 // Builds the "no folders found" placeholder shown when scan_siblings returned 0 results.
-// Kept identical to the previous empty-card markup so the visual layout doesn't shift.
+// It uses a single-column modifier so the help text doesn't inherit the real card's
+// action-button grid.
 function buildEmptyCard() {
   const empty = document.createElement("article");
-  empty.className = "project-card";
+  empty.className = "project-card project-card-empty";
   empty.innerHTML = `
     <span class="status warning">Setup needed</span>
     <h3>No Z3R folders found</h3>
-    <p class="path-line">Use Clone Z3R or place a Z3R folder beside this launcher.</p>
+    <p class="path-line">Use Clone Z3R or add a repo scan path that contains a Z3R folder.</p>
   `;
   return empty;
 }
@@ -71,6 +93,7 @@ function buildProjectCard(candidate, helpers) {
     playDisabled,
     nameSafe: escapeHtml(candidate.name),
     authorLine,
+    patchButton: shouldShowMakefilePatch(candidate) ? makefilePatchButtonMarkup() : "",
   });
 
   wireCardButtons(card, candidate, helpers);
@@ -82,12 +105,15 @@ function buildProjectCard(candidate, helpers) {
 }
 
 // Centralizes the card HTML so wireCardButtons can stay focused on event wiring. The
-// card now has FOUR grid rows: status/play, title-block, card-config-actions (aspect +
-// controls), and card-setup-actions (environment + randomizer).
-function buildCardMarkup({ statusClass, statusLabel, playDisabled, nameSafe, authorLine }) {
+// card now has FOUR grid rows: status/actions, title-block, card-config-actions
+// (aspect + controls), and card-setup-actions (environment + randomizer).
+function buildCardMarkup({ statusClass, statusLabel, playDisabled, nameSafe, authorLine, patchButton }) {
   return `
     <span class="status ${statusClass}">${statusLabel}</span>
-    <button class="play-button" type="button" ${playDisabled ? "disabled" : ""}>Play</button>
+    <div class="card-top-actions">
+      <button class="play-button" type="button" ${playDisabled ? "disabled" : ""}>Play</button>
+      ${patchButton}
+    </div>
     <div class="card-title-block">
       <h3>${nameSafe}</h3>
       ${authorLine}
@@ -106,7 +132,7 @@ function buildCardMarkup({ statusClass, statusLabel, playDisabled, nameSafe, aut
 // Attaches the per-button click handlers. The aspect ratio widget mounts later because
 // it lives inside the placeholder element and owns its own DOM structure.
 function wireCardButtons(card, candidate, helpers) {
-  const { selectProject, openEnvironment, showView, launchProject } = helpers;
+  const { call, log, refreshScan, selectProject, openEnvironment, showView, launchProject } = helpers;
 
   card.querySelector(".environment-button").addEventListener("click", async (event) => {
     event.stopPropagation();
@@ -129,4 +155,28 @@ function wireCardButtons(card, candidate, helpers) {
     event.stopPropagation();
     await launchProject(candidate);
   });
+
+  const patchButton = card.querySelector(".makefile-patch-button");
+  if (patchButton) {
+    patchButton.addEventListener("click", async (event) => {
+      event.stopPropagation();
+      const result = await call("apply_snesrev_makefile_patch", { projectPath: candidate.path });
+      log(result.message);
+      await refreshScan();
+    });
+  }
+}
+
+// Only unpatched upstream snesrev/zelda3 cards get the patched Makefile action.
+function shouldShowMakefilePatch(candidate) {
+  return (
+    candidate.owner?.toLowerCase() === "snesrev"
+    && candidate.name?.toLowerCase() === "zelda3"
+    && !candidate.snesrev_makefile_patch_applied
+  );
+}
+
+// Keeps the conditional button markup in one place so normal cards remain unchanged.
+function makefilePatchButtonMarkup() {
+  return `<button class="secondary-button makefile-patch-button" type="button">Patch Makefile</button>`;
 }
