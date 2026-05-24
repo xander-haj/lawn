@@ -145,7 +145,7 @@ fn inspect_candidate(path: &Path, owner: Option<String>) -> Option<ProjectCandid
     let mut notes = Vec::new();
     let status = match (&asset_path, &executable_path) {
         (Some(asset), Some(executable)) => {
-            if executable.parent() == asset.parent() {
+            if executable.parent() == asset.parent() || is_windows_runtime_output(executable) {
                 "ready".to_string()
             } else {
                 notes.push(
@@ -216,7 +216,15 @@ fn find_asset(project_path: &Path) -> Option<PathBuf> {
         project_path.join("tables").join("zelda3_assets.dat"),
         project_path
             .join("bin")
+            .join("x64-Release")
+            .join("zelda3_assets.dat"),
+        project_path
+            .join("bin")
             .join("x64-ReleaseDeploy")
+            .join("zelda3_assets.dat"),
+        project_path
+            .join("bin")
+            .join("Win32-Release")
             .join("zelda3_assets.dat"),
         project_path
             .join("bin")
@@ -231,6 +239,18 @@ fn find_asset(project_path: &Path) -> Option<PathBuf> {
     }
 
     None
+}
+
+// Windows MSBuild emits zelda3.exe and SDL2.dll together in bin/*-Release while
+// zelda3_assets.dat may remain in the project root or tables folder.
+fn is_windows_runtime_output(executable: &Path) -> bool {
+    if !cfg!(target_os = "windows") {
+        return false;
+    }
+
+    executable
+        .parent()
+        .is_some_and(|folder| folder.join("SDL2.dll").is_file())
 }
 
 // Searches common output locations for the game executable on the current platform.

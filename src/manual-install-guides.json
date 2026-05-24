@@ -187,7 +187,7 @@
       "links": [
         {
           "label": "Tiny C Compiler",
-          "url": "https://bellard.org/tcc/"
+          "url": "https://github.com/FitzRoyX/tinycc/releases/tag/tcc_20251005"
         }
       ]
     },
@@ -208,7 +208,7 @@
       "links": [
         {
           "label": "SDL releases",
-          "url": "https://github.com/libsdl-org/SDL/releases"
+          "url": "https://github.com/libsdl-org/SDL/releases/tag/release-2.30.11"
         }
       ]
     }

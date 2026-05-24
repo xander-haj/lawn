@@ -1,4 +1,5 @@
 // This module performs user-triggered actions with fixed commands and arguments.
+use crate::makefile_patches::apply_windows_solution_patch_to_project;
 use crate::models::ActionResult;
 use crate::paths::{display_path, resolve_scan_root, venv_python, Z3R_REPO_URL};
 use crate::rom_storage::copy_stored_rom_to_project;
@@ -11,9 +12,10 @@ use tauri_plugin_dialog::DialogExt;
 #[tauri::command]
 pub fn launch_game(executable_path: String) -> Result<ActionResult, String> {
     let executable = PathBuf::from(executable_path);
-    let working_dir = executable
+    let executable_dir = executable
         .parent()
         .ok_or_else(|| "The executable path has no parent folder.".to_string())?;
+    let working_dir = launch_working_dir(&executable, executable_dir);
 
     Command::new(&executable)
         .current_dir(working_dir)
@@ -29,6 +31,34 @@ pub fn launch_game(executable_path: String) -> Result<ActionResult, String> {
         stdout: String::new(),
         stderr: String::new(),
     })
+}
+
+// Visual Studio outputs live under bin/{Platform-Configuration}; use the project root
+// as cwd so assets in zelda3_assets.dat or tables/ remain discoverable at runtime.
+fn launch_working_dir<'a>(executable: &'a Path, executable_dir: &'a Path) -> &'a Path {
+    if !cfg!(target_os = "windows") {
+        return executable_dir;
+    }
+
+    let Some(bin_dir) = executable_dir.parent() else {
+        return executable_dir;
+    };
+    let Some(project_dir) = bin_dir.parent() else {
+        return executable_dir;
+    };
+    let is_visual_studio_output = bin_dir
+        .file_name()
+        .is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("bin"));
+    let has_windows_runtime = executable
+        .file_name()
+        .is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("zelda3.exe"))
+        && executable_dir.join("SDL2.dll").is_file();
+
+    if is_visual_studio_output && has_windows_runtime {
+        project_dir
+    } else {
+        executable_dir
+    }
 }
 
 // Opens a native folder picker so users can choose where scanning and cloning happen.
@@ -222,6 +252,8 @@ fn build_executable(project: &Path) -> Result<ActionResult, String> {
         {
             return run_tcc_build(project);
         }
+
+        apply_windows_solution_patch_to_project(project)?;
 
         return run_command(
             "msbuild",
