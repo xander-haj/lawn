@@ -26,7 +26,7 @@ export function hasManualInstallGuide(guides, os, dependencyId) {
 }
 
 // Renders the guide page with optional step images and reference links from the JSON guide file.
-export function renderManualInstallGuide(guide, elements, selectedPath) {
+export function renderManualInstallGuide(guide, elements, selectedPath, openExternalUrl) {
   const projectPath = selectedPath ?? "your selected Z3R folder";
   elements.manualGuideTitle.textContent = guide.title ?? "Manual Install";
   elements.manualGuideMeta.textContent = guide.meta ?? "Manual install";
@@ -44,7 +44,7 @@ export function renderManualInstallGuide(guide, elements, selectedPath) {
   }
 
   if (Array.isArray(guide.links) && guide.links.length > 0) {
-    elements.manualGuideContent.append(renderLinks(guide.links));
+    elements.manualGuideContent.append(renderLinks(guide.links, openExternalUrl));
   }
 }
 
@@ -73,19 +73,18 @@ function renderStep(step, index, projectPath) {
   return section;
 }
 
-// Renders trusted reference links as normal anchors so users can open official install pages when needed.
-function renderLinks(links) {
+// Renders trusted reference links as buttons so Tauri can open them through the native OS.
+function renderLinks(links, openExternalUrl) {
   const wrapper = document.createElement("div");
   wrapper.className = "guide-links";
 
   for (const link of links) {
-    const anchor = document.createElement("a");
-    anchor.className = "guide-link";
-    anchor.href = link.url;
-    anchor.target = "_blank";
-    anchor.rel = "noreferrer";
-    anchor.textContent = link.label;
-    wrapper.append(anchor);
+    const button = document.createElement("button");
+    button.className = "guide-link";
+    button.type = "button";
+    button.textContent = link.label;
+    button.addEventListener("click", () => openExternalUrl(link.url));
+    wrapper.append(button);
   }
 
   return wrapper;

@@ -88,6 +88,11 @@ async function call(command, payload = {}) {
   }
 }
 
+// Opens trusted manual-guide links through Rust so Windows WebView does not swallow anchors.
+async function openExternalUrl(url) {
+  await call("open_external_url", { url });
+}
+
 // View switching toggles the .active class on the matching panel. The Back to home
 // button is hidden on the home view; the global topbar actions are home-only
 // because they operate on ROM storage, scan paths, or new project folders.
@@ -214,6 +219,7 @@ const helpers = {
   elements,
   call,
   log,
+  openExternalUrl,
   showView,
   selectProject,
   openEnvironment,

@@ -78,7 +78,7 @@ function hasManualAction(check, helpers) {
 
 // Opens the in-app manual-install guide view for the dependency represented by a row.
 function openManualInstallGuide(check, helpers) {
-  const { state, elements, log, showView } = helpers;
+  const { state, elements, log, showView, openExternalUrl } = helpers;
   const guide = getManualInstallGuide(state.manualInstallGuides, state.environmentOs, check.id);
 
   if (!guide) {
@@ -86,7 +86,7 @@ function openManualInstallGuide(check, helpers) {
     return;
   }
 
-  renderManualInstallGuide(guide, elements, state.selectedPath);
+  renderManualInstallGuide(guide, elements, state.selectedPath, openExternalUrl);
   showView("manual-guide");
 }
 

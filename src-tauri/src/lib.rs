@@ -3,6 +3,7 @@
 mod actions;
 mod discovery;
 mod env_checks;
+mod external_links;
 // Owns line-preserving read/write of project-local zelda3.ini files for the per-card
 // aspect ratio widget and the Controls screen.
 mod ini_config;
@@ -26,6 +27,7 @@ pub fn run() {
             actions::create_venv,
             actions::install_dependencies,
             actions::extract_assets,
+            external_links::open_external_url,
             makefile_patches::apply_snesrev_makefile_patch,
             makefile_patches::apply_snesrev_solution_patch,
             rom_storage::stored_rom_status,

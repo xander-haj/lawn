@@ -75,6 +75,8 @@
   border-radius: var(--radius);
   color: var(--text);
   background: #0d2415;
+  cursor: pointer;
+  font: inherit;
   text-decoration: none;
 }
 
