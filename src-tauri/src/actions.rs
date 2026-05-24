@@ -109,8 +109,12 @@ pub fn clone_custom_project(
     // Pre-create the owner folder so git can write into a clean leaf. create_dir_all is a
     // no-op when the owner folder already exists from a previous fork clone under the
     // same owner, which is exactly the multi-fork case this feature is designed for.
-    fs::create_dir_all(&owner_dir)
-        .map_err(|error| format!("Could not create owner folder {}: {error}", display_path(&owner_dir)))?;
+    fs::create_dir_all(&owner_dir).map_err(|error| {
+        format!(
+            "Could not create owner folder {}: {error}",
+            display_path(&owner_dir)
+        )
+    })?;
 
     // Pass the relative "{owner}/{repo}" target to git so the cwd stays at the scan root.
     // Matches how clone_project keeps its working directory at the parent.
@@ -192,7 +196,10 @@ pub fn extract_assets(project_path: String) -> Result<ActionResult, String> {
     let message = if build.ok {
         "Asset extraction and build complete.".to_string()
     } else {
-        format!("Build step failed after asset extraction: {}", build.message)
+        format!(
+            "Build step failed after asset extraction: {}",
+            build.message
+        )
     };
 
     Ok(ActionResult {
@@ -339,8 +346,7 @@ fn github_repo_owner_and_name(repo_url: &str) -> Result<(String, String), String
     // on every supported OS without rejecting normal GitHub names.
     if !is_safe_segment(&owner) {
         return Err(
-            "The owner name contains characters this launcher cannot use for a folder."
-                .to_string(),
+            "The owner name contains characters this launcher cannot use for a folder.".to_string(),
         );
     }
 

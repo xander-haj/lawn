@@ -29,6 +29,8 @@ pub struct ProjectCandidate {
     pub asset_path: Option<String>,
     pub executable_path: Option<String>,
     pub snesrev_makefile_patch_applied: bool,
+    pub snesrev_solution_patch_applied: bool,
+    pub source_patch_needed: Option<String>,
     pub status: String,
     pub notes: Vec<String>,
 }

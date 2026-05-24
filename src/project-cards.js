@@ -93,7 +93,7 @@ function buildProjectCard(candidate, helpers) {
     playDisabled,
     nameSafe: escapeHtml(candidate.name),
     authorLine,
-    patchButton: shouldShowMakefilePatch(candidate) ? makefilePatchButtonMarkup() : "",
+    patchButton: sourcePatchButtonMarkup(candidate),
   });
 
   wireCardButtons(card, candidate, helpers);
@@ -156,27 +156,29 @@ function wireCardButtons(card, candidate, helpers) {
     await launchProject(candidate);
   });
 
-  const patchButton = card.querySelector(".makefile-patch-button");
+  const patchButton = card.querySelector(".source-patch-button");
   if (patchButton) {
     patchButton.addEventListener("click", async (event) => {
       event.stopPropagation();
-      const result = await call("apply_snesrev_makefile_patch", { projectPath: candidate.path });
+      const command = candidate.source_patch_needed === "solution"
+        ? "apply_snesrev_solution_patch"
+        : "apply_snesrev_makefile_patch";
+      const result = await call(command, { projectPath: candidate.path });
       log(result.message);
       await refreshScan();
     });
   }
 }
 
-// Only unpatched upstream snesrev/zelda3 cards get the patched Makefile action.
-function shouldShowMakefilePatch(candidate) {
-  return (
-    candidate.owner?.toLowerCase() === "snesrev"
-    && candidate.name?.toLowerCase() === "zelda3"
-    && !candidate.snesrev_makefile_patch_applied
-  );
-}
+// Keeps platform-specific source patch markup in one place so normal cards remain unchanged.
+function sourcePatchButtonMarkup(candidate) {
+  const labels = {
+    makefile: "Patch Makefile",
+    solution: "Patch SLN",
+  };
+  const label = labels[candidate.source_patch_needed];
 
-// Keeps the conditional button markup in one place so normal cards remain unchanged.
-function makefilePatchButtonMarkup() {
-  return `<button class="secondary-button makefile-patch-button" type="button">Patch Makefile</button>`;
+  return label
+    ? `<button class="secondary-button source-patch-button" type="button">${label}</button>`
+    : "";
 }

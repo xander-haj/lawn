@@ -13,3 +13,4 @@ venv/
 .venv/
 target/
 src-tauri/target/
+src-tauri/gen/

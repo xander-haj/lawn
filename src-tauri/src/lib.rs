@@ -27,6 +27,7 @@ pub fn run() {
             actions::install_dependencies,
             actions::extract_assets,
             makefile_patches::apply_snesrev_makefile_patch,
+            makefile_patches::apply_snesrev_solution_patch,
             rom_storage::stored_rom_status,
             rom_storage::choose_and_store_rom,
             rom_storage::open_stored_rom_folder,

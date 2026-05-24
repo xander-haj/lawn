@@ -15,9 +15,7 @@
 //     Replaces one line (1-based) in zelda3.ini with raw_line. The frontend composes
 //     the full replacement line (including any leading `#` or `;` comment prefix) so
 //     the backend never has to know which comment glyph the file uses for that line.
-use crate::models::{
-    ActionResult, AspectRatioState, IniLineSnapshot, ZeldaIniSnapshot,
-};
+use crate::models::{ActionResult, AspectRatioState, IniLineSnapshot, ZeldaIniSnapshot};
 use std::fs;
 use std::path::PathBuf;
 
@@ -218,7 +216,14 @@ fn is_key_shape(key: &str) -> bool {
 // Splits text into lines while remembering which newline style the file used, so the
 // rewrite uses the same separator (avoids accidentally converting CRLF to LF on Windows).
 fn split_preserving_newline(contents: &str) -> (Vec<String>, &'static str) {
-    let newline = if contents.contains("\r\n") { "\r\n" } else { "\n" };
-    let lines = contents.split(newline).map(|line| line.to_string()).collect();
+    let newline = if contents.contains("\r\n") {
+        "\r\n"
+    } else {
+        "\n"
+    };
+    let lines = contents
+        .split(newline)
+        .map(|line| line.to_string())
+        .collect();
     (lines, newline)
 }

@@ -1,6 +1,6 @@
 // This module scans folders beside the launcher and classifies Z3R projects by
 // runtime readiness.
-use crate::makefile_patches::has_snesrev_makefile_patch;
+use crate::makefile_patches::{has_snesrev_makefile_patch, has_snesrev_solution_patch};
 use crate::models::{AppScan, ProjectCandidate, ProjectScanGroup};
 use crate::paths::{display_path, resolve_scan_root};
 use std::fs;
@@ -35,7 +35,10 @@ pub fn scan_siblings(scan_roots: Option<Vec<String>>) -> Result<AppScan, String>
 }
 
 // Builds the scan root list with the launcher default first and user-added paths after it.
-fn ordered_scan_roots(default_root: &Path, added_roots: Vec<String>) -> Result<Vec<PathBuf>, String> {
+fn ordered_scan_roots(
+    default_root: &Path,
+    added_roots: Vec<String>,
+) -> Result<Vec<PathBuf>, String> {
     let mut roots = vec![default_root.to_path_buf()];
 
     for root in added_roots {
@@ -131,9 +134,9 @@ fn scan_owner_folder(owner_path: &Path, candidates: &mut Vec<crate::models::Proj
 fn inspect_candidate(path: &Path, owner: Option<String>) -> Option<ProjectCandidate> {
     let asset_path = find_asset(path);
     let executable_path = find_executable(path);
-    let has_source = path.join("Makefile").exists()
-        || path.join("Zelda3.sln").exists()
-        || path.join("run_with_tcc.bat").exists();
+    let has_makefile = path.join("Makefile").exists();
+    let has_solution = path.join("Zelda3.sln").exists();
+    let has_source = has_makefile || has_solution || path.join("run_with_tcc.bat").exists();
 
     if asset_path.is_none() && executable_path.is_none() && !has_source {
         return None;
@@ -160,13 +163,20 @@ fn inspect_candidate(path: &Path, owner: Option<String>) -> Option<ProjectCandid
         (None, None) => "source-only".to_string(),
     };
 
-    let snesrev_makefile_patch_applied = owner.as_deref().is_some_and(|owner| {
+    let is_snesrev_zelda3 = owner.as_deref().is_some_and(|owner| {
         owner.eq_ignore_ascii_case("snesrev")
             && path
                 .file_name()
                 .is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("zelda3"))
-            && has_snesrev_makefile_patch(path)
     });
+    let snesrev_makefile_patch_applied = is_snesrev_zelda3 && has_snesrev_makefile_patch(path);
+    let snesrev_solution_patch_applied = has_solution && has_snesrev_solution_patch(path);
+    let source_patch_needed = source_patch_for_platform(
+        is_snesrev_zelda3,
+        has_solution,
+        snesrev_makefile_patch_applied,
+        snesrev_solution_patch_applied,
+    );
 
     Some(ProjectCandidate {
         name: path
@@ -178,9 +188,25 @@ fn inspect_candidate(path: &Path, owner: Option<String>) -> Option<ProjectCandid
         asset_path: asset_path.as_deref().map(display_path),
         executable_path: executable_path.as_deref().map(display_path),
         snesrev_makefile_patch_applied,
+        snesrev_solution_patch_applied,
+        source_patch_needed,
         status,
         notes,
     })
+}
+
+// Chooses the one source-file patch that matters on the current launcher platform.
+fn source_patch_for_platform(
+    is_snesrev_zelda3: bool,
+    has_solution: bool,
+    makefile_patch_applied: bool,
+    solution_patch_applied: bool,
+) -> Option<String> {
+    if cfg!(target_os = "windows") {
+        return (has_solution && !solution_patch_applied).then(|| "solution".to_string());
+    }
+
+    (is_snesrev_zelda3 && !makefile_patch_applied).then(|| "makefile".to_string())
 }
 
 // Searches the project root and common deploy folders for the game asset bundle.
