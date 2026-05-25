@@ -9,10 +9,19 @@ export function updateEnvironmentActions(elements, checks) {
   const dependenciesReady = checkReady(checks, "python-dependencies");
   // Build assets invokes restool.py --extract-from-rom, which fails without zelda3.sfc in the project root.
   const romReady = checkReady(checks, "rom");
+  const windowsReady = checks.some((check) => check.id === "msbuild" || check.id === "tcc");
+  const msbuildReady = checkReady(checks, "msbuild");
+  const tccReady = checkReady(checks, "tcc");
+  const baseBuildReady = pythonReady && venvReady && dependenciesReady && romReady;
 
   elements.venvButton.disabled = !pythonReady;
   elements.dependenciesButton.disabled = !pythonReady || !venvReady;
-  elements.extractButton.disabled = !pythonReady || !venvReady || !dependenciesReady || !romReady;
+  elements.extractButton.classList.toggle("hidden", windowsReady);
+  elements.extractButton.disabled = !baseBuildReady;
+  elements.extractVisualStudioButton.classList.toggle("hidden", !windowsReady || !msbuildReady);
+  elements.extractVisualStudioButton.disabled = !baseBuildReady || !msbuildReady;
+  elements.extractTccButton.classList.toggle("hidden", !windowsReady);
+  elements.extractTccButton.disabled = !baseBuildReady || !tccReady;
 }
 
 // Looks up one environment check by stable id and treats only the explicit ok state as ready.

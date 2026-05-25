@@ -1,6 +1,7 @@
 // This library crate wires the Tauri window to focused backend modules for discovery,
 // environment checks, and controlled setup/build actions.
 mod actions;
+mod asset_builds;
 mod discovery;
 mod env_checks;
 mod external_links;
@@ -26,7 +27,9 @@ pub fn run() {
             actions::clone_custom_project,
             actions::create_venv,
             actions::install_dependencies,
-            actions::extract_assets,
+            asset_builds::extract_assets,
+            asset_builds::extract_assets_visual_studio,
+            asset_builds::extract_assets_tcc,
             external_links::open_external_url,
             makefile_patches::apply_snesrev_makefile_patch,
             makefile_patches::apply_snesrev_solution_patch,

@@ -13,7 +13,7 @@
     "Press the Create venv button.",
     "After venv activation, press the install dependencies button",
     "Use Visual Studio Build Tools with Desktop development with C++ or the TCC package route before building.",
-    "Press the Build assets button to extract assets, compile zelda3_assets.dat, and build zelda3.exe.",
+    "Press Build assets TCC, or press Build assets Visual Studio when MSBuild is detected.",
     "When it finishes, go back to the home menu to Play or Randomize."
   ],
   "linux": [

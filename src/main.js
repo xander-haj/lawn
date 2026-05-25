@@ -66,6 +66,8 @@ const elements = {
   venvButton: document.querySelector("#venvButton"),
   dependenciesButton: document.querySelector("#dependenciesButton"),
   extractButton: document.querySelector("#extractButton"),
+  extractVisualStudioButton: document.querySelector("#extractVisualStudioButton"),
+  extractTccButton: document.querySelector("#extractTccButton"),
   clearLogButton: document.querySelector("#clearLogButton"),
 };
 
@@ -291,6 +293,18 @@ elements.extractButton.addEventListener("click", () => {
   const payload = selectedProjectPayload();
   if (payload) {
     runAction("extract_assets", payload);
+  }
+});
+elements.extractVisualStudioButton.addEventListener("click", () => {
+  const payload = selectedProjectPayload();
+  if (payload) {
+    runAction("extract_assets_visual_studio", payload);
+  }
+});
+elements.extractTccButton.addEventListener("click", () => {
+  const payload = selectedProjectPayload();
+  if (payload) {
+    runAction("extract_assets_tcc", payload);
   }
 });
 

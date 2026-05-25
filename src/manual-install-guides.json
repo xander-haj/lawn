@@ -93,7 +93,11 @@
       "steps": [
         {
           "title": "Download Git for Windows",
-          "text": "Use the official Git for Windows installer. The default installer choices are fine for the launcher."
+          "text": "Use the official Git for Windows installer. When the installer asks how Git should be used from the command line, keep the option that adds Git to PATH."
+        },
+        {
+          "title": "Confirm Git is on PATH",
+          "text": "Open a new PowerShell window and run `git --version`. If Windows cannot find Git, restart Windows or add Git's `cmd` folder to PATH from Settings > System > About > Advanced system settings > Environment Variables."
         },
         {
           "title": "Restart the launcher",
@@ -114,7 +118,11 @@
       "steps": [
         {
           "title": "Download Python",
-          "text": "Install Python 3 from python.org. Enable the installer option that adds Python to PATH."
+          "text": "Install Python 3 from python.org. On the first installer screen, enable the `Add python.exe to PATH` checkbox before pressing Install Now."
+        },
+        {
+          "title": "Confirm Python is on PATH",
+          "text": "Open a new PowerShell window and run `py --version` and `python --version`. If neither works, add Python from Settings > System > About > Advanced system settings > Environment Variables > Path."
         },
         {
           "title": "Confirm the launcher can see Python",
@@ -138,6 +146,10 @@
           "text": "Download Build Tools for Visual Studio and select the Desktop development with C++ workload."
         },
         {
+          "title": "Make MSBuild available",
+          "text": "The Visual Studio installer usually exposes MSBuild through Developer PowerShell. If the launcher still cannot find `msbuild`, add the Visual Studio MSBuild `Bin` folder to PATH or start the launcher from Developer PowerShell."
+        },
+        {
           "title": "Reopen the launcher",
           "text": "After installation finishes, reopen the launcher or run it from a Developer PowerShell, then run checks again."
         }
@@ -159,6 +171,10 @@
           "text": "Use the Microsoft guidance to restore Windows PowerShell or install the current PowerShell package."
         },
         {
+          "title": "Confirm PowerShell is on PATH",
+          "text": "Open Command Prompt and run `powershell -NoProfile -Command \"$PSVersionTable.PSVersion\"`. If it is not found, add the PowerShell install folder to PATH from Environment Variables."
+        },
+        {
           "title": "Run checks again",
           "text": "After PowerShell opens from the Start menu, return to the launcher and run checks again."
         }
@@ -176,8 +192,12 @@
       "summary": "TCC is only needed for the lightweight Windows TCC build route.",
       "steps": [
         {
+          "title": "Download the Windows ZIP",
+          "text": "Open the TCC release page and download the Windows ZIP archive. Extract it, then find `tcc.exe` and the included DLL files inside the extracted folder."
+        },
+        {
           "title": "Place TCC under third_party",
-          "text": "Put `tcc.exe` at `{projectPath}\\third_party\\tcc\\tcc.exe`."
+          "text": "Copy the extracted TCC files so `tcc.exe` is at `{projectPath}\\third_party\\tcc\\tcc.exe`. Keep the DLL files from the ZIP in that same TCC folder."
         },
         {
           "title": "Run checks again",
@@ -198,7 +218,7 @@
       "steps": [
         {
           "title": "Download SDL2 development files",
-          "text": "Download the SDL2 development package for Visual C++ from the official SDL releases."
+          "text": "Download the SDL2 2.30.11 development package for Visual C++ from the linked release page."
         },
         {
           "title": "Place the DLL where Z3R expects it",
