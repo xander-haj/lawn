@@ -2,6 +2,7 @@
 // environment checks, and controlled setup/build actions.
 mod actions;
 mod asset_builds;
+mod bundled_tools;
 mod discovery;
 mod env_checks;
 mod external_links;

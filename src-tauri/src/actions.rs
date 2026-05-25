@@ -1,4 +1,5 @@
 // This module performs user-triggered actions with fixed commands and arguments.
+use crate::bundled_tools::{git_program, python_program};
 use crate::models::ActionResult;
 use crate::paths::{display_path, resolve_scan_root, venv_python, Z3R_REPO_URL};
 use crate::rom_storage::copy_stored_rom_to_project;
@@ -102,7 +103,7 @@ pub fn clone_project(
     }
 
     let mut result = run_command(
-        "git",
+        &git_program(&app),
         &["clone", "--recursive", Z3R_REPO_URL, "Z3R"],
         &parent,
         "Clone complete.",
@@ -150,7 +151,7 @@ pub fn clone_custom_project(
     let relative_target = format!("{owner}/{repo}");
 
     let mut result = run_command(
-        "git",
+        &git_program(&app),
         &["clone", "--recursive", &normalized_url, &relative_target],
         &parent,
         "Custom clone complete.",
@@ -162,16 +163,12 @@ pub fn clone_custom_project(
 
 // Creates a project-local Python virtual environment without installing packages.
 #[tauri::command]
-pub fn create_venv(project_path: String) -> Result<ActionResult, String> {
+pub fn create_venv(app: tauri::AppHandle, project_path: String) -> Result<ActionResult, String> {
     let project = PathBuf::from(project_path);
-    let program = if cfg!(target_os = "windows") {
-        "py"
-    } else {
-        "python3"
-    };
+    let program = python_program(&app);
 
     run_command(
-        program,
+        &program,
         &["-m", "venv", ".venv"],
         &project,
         "Virtual environment created.",
