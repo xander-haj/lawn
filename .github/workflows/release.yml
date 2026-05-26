@@ -18,8 +18,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1 || \
+          gh release view --repo "${GITHUB_REPOSITORY}" "${GITHUB_REF_NAME}" >/dev/null 2>&1 || \
             gh release create "${GITHUB_REF_NAME}" \
+              --repo "${GITHUB_REPOSITORY}" \
               --draft \
               --title "Z3R Launcher ${GITHUB_REF_NAME}" \
               --notes "Download the launcher for your operating system below."
@@ -109,4 +110,4 @@ jobs:
             echo "No release assets found under src-tauri/target."
             exit 1
           fi
-          gh release upload "${GITHUB_REF_NAME}" "${assets[@]}" --clobber
+          gh release upload --repo "${GITHUB_REPOSITORY}" "${GITHUB_REF_NAME}" "${assets[@]}" --clobber
