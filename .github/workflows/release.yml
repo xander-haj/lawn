@@ -16,7 +16,7 @@ jobs:
     steps:
       - name: Create draft release
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           gh release view --repo "${GITHUB_REPOSITORY}" "${GITHUB_REF_NAME}" >/dev/null 2>&1 || \
             gh release create "${GITHUB_REF_NAME}" \
@@ -51,15 +51,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          git init .
-          git remote add origin "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git"
-          git -c http.extraheader="AUTHORIZATION: bearer ${GH_TOKEN}" fetch --depth=1 origin "${GITHUB_SHA}"
-          git checkout --force FETCH_HEAD
-          git submodule update --init --recursive
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+          persist-credentials: false
 
       - name: Install Rust
         shell: bash
@@ -97,7 +92,7 @@ jobs:
       - name: Upload release assets
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           mapfile -t assets < <(
             find src-tauri/target -type f \( \
