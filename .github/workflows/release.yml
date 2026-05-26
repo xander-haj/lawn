@@ -36,9 +36,13 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.rust_targets }}
+        shell: bash
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          if [ -n "${{ matrix.rust_targets }}" ]; then
+            rustup target add ${{ matrix.rust_targets }}
+          fi
 
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-22.04'
