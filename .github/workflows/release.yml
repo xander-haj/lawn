@@ -99,13 +99,22 @@ jobs:
             assets+=("${asset}")
           done < <(
             find src-tauri/target -type f \( \
-              -path '*/release/bundle/*' \
-              -o -path '*/release/z3r-launcher' \
-              -o -path '*/release/z3r-launcher.exe' \
+              -path '*/release/bundle/appimage/*.AppImage' \
+              -o -path '*/release/bundle/deb/*.deb' \
+              -o -path '*/release/bundle/rpm/*.rpm' \
+              -o -path '*/release/bundle/dmg/*.dmg' \
+              -o -path '*/release/bundle/macos/*.app.tar.gz' \
+              -o -path '*/release/bundle/macos/*.app.tar.gz.sig' \
+              -o -path '*/release/bundle/msi/*.msi' \
+              -o -path '*/release/bundle/nsis/*.exe' \
             \)
           )
           if [ "${#assets[@]}" -eq 0 ]; then
             echo "No release assets found under src-tauri/target."
             exit 1
           fi
+          printf 'Release assets to upload:\n'
+          for asset in "${assets[@]}"; do
+            printf ' - %s\n' "${asset}"
+          done
           gh release upload --repo "${GITHUB_REPOSITORY}" "${GITHUB_REF_NAME}" "${assets[@]}" --clobber
