@@ -46,6 +46,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
+      - name: Prepare bundled Windows toolkit
+        if: matrix.platform == 'windows-2022'
+        shell: pwsh
+        run: ./scripts/prepare-windows-toolkit.ps1
+
+      - name: Verify bundled Windows toolkit
+        if: matrix.platform == 'windows-2022'
+        shell: pwsh
+        run: ./scripts/verify-windows-toolkit.ps1
+
       - name: Build and upload Tauri release
         uses: tauri-apps/tauri-action@dev
         env:
