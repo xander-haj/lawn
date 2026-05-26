@@ -9,7 +9,23 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
+  create-release:
+    permissions:
+      contents: write
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1 || \
+            gh release create "${GITHUB_REF_NAME}" \
+              --draft \
+              --title "Z3R Launcher ${GITHUB_REF_NAME}" \
+              --notes "Download the launcher for your operating system below."
+
   build-tauri:
+    needs: create-release
     permissions:
       contents: write
 
@@ -33,7 +49,16 @@ jobs:
     runs-on: ${{ matrix.platform }}
 
     steps:
-      - uses: actions/checkout@v6
+      - name: Checkout repository
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git init .
+          git remote add origin "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git"
+          git -c http.extraheader="AUTHORIZATION: bearer ${GH_TOKEN}" fetch --depth=1 origin "${GITHUB_SHA}"
+          git checkout --force FETCH_HEAD
+          git submodule update --init --recursive
 
       - name: Install Rust
         shell: bash
@@ -43,6 +68,10 @@ jobs:
           if [ -n "${{ matrix.rust_targets }}" ]; then
             rustup target add ${{ matrix.rust_targets }}
           fi
+
+      - name: Install Tauri CLI
+        shell: bash
+        run: cargo install tauri-cli --version 2.6.2 --locked
 
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-22.04'
@@ -60,16 +89,24 @@ jobs:
         shell: pwsh
         run: ./scripts/verify-windows-toolkit.ps1
 
-      - name: Build and upload Tauri release
-        uses: tauri-apps/tauri-action@dev
+      - name: Build Tauri release
+        shell: bash
+        run: cargo tauri build ${{ matrix.args }}
+
+      - name: Upload release assets
+        shell: bash
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          projectPath: .
-          tagName: ${{ github.ref_name }}
-          releaseName: "Z3R Launcher ${{ github.ref_name }}"
-          releaseBody: "Download the launcher for your operating system below."
-          releaseDraft: true
-          prerelease: false
-          uploadPlainBinary: true
-          args: ${{ matrix.args }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mapfile -t assets < <(
+            find src-tauri/target -type f \( \
+              -path '*/release/bundle/*' \
+              -o -path '*/release/z3r-launcher' \
+              -o -path '*/release/z3r-launcher.exe' \
+            \)
+          )
+          if [ "${#assets[@]}" -eq 0 ]; then
+            echo "No release assets found under src-tauri/target."
+            exit 1
+          fi
+          gh release upload "${GITHUB_REF_NAME}" "${assets[@]}" --clobber
