@@ -2,8 +2,8 @@
 // commands separate from general launcher actions makes Windows' Visual Studio
 // and TCC paths explicit for the frontend.
 use crate::actions::run_command;
-use crate::bundled_tools::{bundled_sdl2_dll, bundled_sdl2_root, bundled_tcc, find_msbuild};
-use crate::makefile_patches::apply_windows_solution_patch_to_project;
+use crate::bundled_tools::{bundled_sdl2_root, bundled_tcc, find_msbuild};
+use crate::makefile_patches::{apply_windows_solution_patch_to_project, is_snesrev_zelda3_project};
 use crate::models::ActionResult;
 use crate::paths::{display_path, venv_python};
 use std::fs;
@@ -120,7 +120,10 @@ fn build_executable(
 // Applies the bundled solution patch before MSBuild so known invalid solution nesting
 // does not block users who choose the Visual Studio route.
 fn run_visual_studio_build(project: &Path) -> Result<ActionResult, String> {
-    apply_windows_solution_patch_to_project(project)?;
+    if is_snesrev_zelda3_project(project, None) {
+        apply_windows_solution_patch_to_project(project)?;
+    }
+
     let msbuild = find_msbuild().ok_or_else(|| {
         "MSBuild was not found. Install Build Tools for Visual Studio or use the TCC route."
             .to_string()
@@ -135,68 +138,137 @@ fn run_visual_studio_build(project: &Path) -> Result<ActionResult, String> {
     )
 }
 
-// Builds through TCC without calling run_with_tcc.bat because that batch also launches
-// the game and pauses, which would trap the launcher behind a command prompt.
+// Prepares project-local TCC/SDL2 folders, then delegates to the project's batch file.
 fn run_tcc_build(app: Option<&tauri::AppHandle>, project: &Path) -> Result<ActionResult, String> {
-    let project_tcc = project.join("third_party").join("tcc").join("tcc.exe");
-    let project_sdl_root = project.join("third_party").join("SDL2-2.26.3");
-    let project_sdl_dll = project_sdl_root.join("lib").join("x64").join("SDL2.dll");
-    let bundled_tcc = app.and_then(bundled_tcc);
-    let bundled_sdl_root = app.and_then(bundled_sdl2_root);
-    let bundled_sdl_dll = app.and_then(bundled_sdl2_dll);
-    let tcc = if project_tcc.is_file() {
-        project_tcc
-    } else {
-        bundled_tcc.ok_or_else(|| {
-            "TCC was not found in the project or bundled launcher tools.".to_string()
-        })?
-    };
-    let (sdl_root, sdl_dll) = if project_sdl_dll.is_file() {
-        (project_sdl_root, project_sdl_dll)
-    } else {
-        (
-            bundled_sdl_root.ok_or_else(|| {
-                "SDL2 headers were not found in the project or bundled launcher tools.".to_string()
-            })?,
-            bundled_sdl_dll.ok_or_else(|| {
-                "SDL2.dll was not found in the project or bundled launcher tools.".to_string()
-            })?,
-        )
-    };
+    let prepared_tools = prepare_tcc_project_tools(app, project)?;
+    let mut result = run_command(
+        "cmd",
+        &["/C", "call", "run_with_tcc.bat"],
+        project,
+        "TCC build complete.",
+    )?;
 
-    if !tcc.is_file() {
-        return Err("TCC executable was not found.".to_string());
-    }
-
-    if !sdl_dll.is_file() {
-        return Err("SDL2.dll was not found.".to_string());
-    }
-
-    let tcc_program = quote_cmd_path(&tcc);
-    let sdl_include = quote_cmd_path(&sdl_root.join("include"));
-    let sdl_lib = quote_cmd_path(&sdl_root.join("lib").join("x64"));
-    let command = [
-        &format!("{tcc_program} -ozelda3.exe -DCOMPILER_TCC=1 -DSTBI_NO_SIMD=1"),
-        "-DHAVE_STDINT_H=1 -D_HAVE_STDINT_H=1 -DSYSTEM_VOLUME_MIXER_AVAILABLE=0",
-        &format!("-I{sdl_include} -L{sdl_lib} -lSDL2"),
-        "-I. src\\*.c snes\\*.c third_party\\gl_core\\gl_core_3_1.c",
-        "third_party\\opus-1.3.1-stripped\\opus_decoder_amalgam.c",
-    ]
-    .join(" ");
-    let mut result = run_command("cmd", &["/C", &command], project, "TCC build complete.")?;
-
-    if result.ok {
-        fs::copy(&sdl_dll, project.join("SDL2.dll"))
-            .map_err(|error| format!("Could not copy SDL2.dll: {error}"))?;
-        result.message = "TCC build complete and SDL2.dll copied beside zelda3.exe.".to_string();
+    if result.ok && !prepared_tools.is_empty() {
+        result.message = format!("{} {}", prepared_tools.join(" "), result.message);
     }
 
     Ok(result)
 }
 
-// Quotes Windows command paths for the cmd.exe command string used to preserve wildcards.
-fn quote_cmd_path(path: &Path) -> String {
-    format!("\"{}\"", display_path(path))
+// Ensures the project root has the exact local files that run_with_tcc.bat expects.
+fn prepare_tcc_project_tools(
+    app: Option<&tauri::AppHandle>,
+    project: &Path,
+) -> Result<Vec<String>, String> {
+    if !project.join("run_with_tcc.bat").is_file() {
+        return Err("run_with_tcc.bat was not found in the project root.".to_string());
+    }
+
+    let mut prepared = Vec::new();
+
+    if ensure_project_tcc(app, project)? {
+        prepared.push("Copied bundled TCC into third_party/tcc.".to_string());
+    }
+
+    if ensure_project_sdl2(app, project)? {
+        prepared.push("Copied bundled SDL2 into third_party/SDL2-2.26.3.".to_string());
+    }
+
+    Ok(prepared)
+}
+
+// Copies the bundled TCC directory into the project when the batch-required tcc.exe is missing.
+fn ensure_project_tcc(app: Option<&tauri::AppHandle>, project: &Path) -> Result<bool, String> {
+    let project_tcc = project.join("third_party").join("tcc").join("tcc.exe");
+
+    if project_tcc.is_file() {
+        return Ok(false);
+    }
+
+    let bundled_tcc = app
+        .and_then(bundled_tcc)
+        .ok_or_else(|| "TCC was not found in the project or bundled launcher tools.".to_string())?;
+    let bundled_tcc_root = bundled_tcc
+        .parent()
+        .ok_or_else(|| "Bundled TCC path did not have a parent folder.".to_string())?;
+    let project_tcc_root = project.join("third_party").join("tcc");
+
+    copy_dir_contents(bundled_tcc_root, &project_tcc_root)?;
+
+    if !project_tcc.is_file() {
+        return Err(
+            "Copied bundled TCC, but third_party/tcc/tcc.exe is still missing.".to_string(),
+        );
+    }
+
+    Ok(true)
+}
+
+// Copies the bundled SDL2 tree into the versioned project folder expected by the batch file.
+fn ensure_project_sdl2(app: Option<&tauri::AppHandle>, project: &Path) -> Result<bool, String> {
+    let project_sdl_root = project.join("third_party").join("SDL2-2.26.3");
+    let project_sdl_header = project_sdl_root.join("include").join("SDL.h");
+    let project_sdl_dll = project_sdl_root.join("lib").join("x64").join("SDL2.dll");
+
+    if project_sdl_header.is_file() && project_sdl_dll.is_file() {
+        return Ok(false);
+    }
+
+    let bundled_sdl_root = app.and_then(bundled_sdl2_root).ok_or_else(|| {
+        "SDL2 headers and SDL2.dll were not found in the project or bundled launcher tools."
+            .to_string()
+    })?;
+
+    copy_dir_contents(&bundled_sdl_root, &project_sdl_root)?;
+
+    if !project_sdl_header.is_file() || !project_sdl_dll.is_file() {
+        return Err(
+            "Copied bundled SDL2, but third_party/SDL2-2.26.3 is still incomplete.".to_string(),
+        );
+    }
+
+    Ok(true)
+}
+
+// Recursively copies every file from a bundled tool folder so license files stay with binaries.
+fn copy_dir_contents(source: &Path, destination: &Path) -> Result<(), String> {
+    if !source.is_dir() {
+        return Err(format!(
+            "Bundled tool folder does not exist: {}",
+            display_path(source)
+        ));
+    }
+
+    fs::create_dir_all(destination)
+        .map_err(|error| format!("Could not create {}: {error}", display_path(destination)))?;
+
+    for entry in fs::read_dir(source)
+        .map_err(|error| format!("Could not read {}: {error}", display_path(source)))?
+    {
+        let entry = entry.map_err(|error| format!("Could not read bundled tool entry: {error}"))?;
+        let source_path = entry.path();
+        let destination_path = destination.join(entry.file_name());
+        let file_type = entry.file_type().map_err(|error| {
+            format!(
+                "Could not inspect bundled tool entry {}: {error}",
+                display_path(&source_path)
+            )
+        })?;
+
+        if file_type.is_dir() {
+            copy_dir_contents(&source_path, &destination_path)?;
+        } else if file_type.is_file() {
+            fs::copy(&source_path, &destination_path).map_err(|error| {
+                format!(
+                    "Could not copy {} to {}: {error}",
+                    display_path(&source_path),
+                    display_path(&destination_path)
+                )
+            })?;
+        }
+    }
+
+    Ok(())
 }
 
 // Concatenates two stage outputs with a blank line between them, skipping empties so

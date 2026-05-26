@@ -1,6 +1,8 @@
 // This module scans folders beside the launcher and classifies Z3R projects by
 // runtime readiness.
-use crate::makefile_patches::{has_snesrev_makefile_patch, has_snesrev_solution_patch};
+use crate::makefile_patches::{
+    has_snesrev_makefile_patch, has_snesrev_solution_patch, is_snesrev_zelda3_project,
+};
 use crate::models::{AppScan, ProjectCandidate, ProjectScanGroup};
 use crate::paths::{display_path, resolve_scan_root};
 use std::fs;
@@ -163,14 +165,10 @@ fn inspect_candidate(path: &Path, owner: Option<String>) -> Option<ProjectCandid
         (None, None) => "source-only".to_string(),
     };
 
-    let is_snesrev_zelda3 = owner.as_deref().is_some_and(|owner| {
-        owner.eq_ignore_ascii_case("snesrev")
-            && path
-                .file_name()
-                .is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("zelda3"))
-    });
+    let is_snesrev_zelda3 = is_discovered_snesrev_zelda3(path, owner.as_deref());
     let snesrev_makefile_patch_applied = is_snesrev_zelda3 && has_snesrev_makefile_patch(path);
-    let snesrev_solution_patch_applied = has_solution && has_snesrev_solution_patch(path);
+    let snesrev_solution_patch_applied =
+        is_snesrev_zelda3 && has_solution && has_snesrev_solution_patch(path);
     let source_patch_needed = source_patch_for_platform(
         is_snesrev_zelda3,
         has_solution,
@@ -195,6 +193,19 @@ fn inspect_candidate(path: &Path, owner: Option<String>) -> Option<ProjectCandid
     })
 }
 
+// Keeps non-Windows Makefile patch visibility on the existing nested-owner signal,
+// while Windows can also recognize a direct scan of the snesrev folder for SLN builds.
+fn is_discovered_snesrev_zelda3(path: &Path, owner: Option<&str>) -> bool {
+    if cfg!(target_os = "windows") {
+        return is_snesrev_zelda3_project(path, owner);
+    }
+
+    owner.is_some_and(|owner| owner.eq_ignore_ascii_case("snesrev"))
+        && path
+            .file_name()
+            .is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("zelda3"))
+}
+
 // Chooses the one source-file patch that matters on the current launcher platform.
 fn source_patch_for_platform(
     is_snesrev_zelda3: bool,
@@ -203,7 +214,8 @@ fn source_patch_for_platform(
     solution_patch_applied: bool,
 ) -> Option<String> {
     if cfg!(target_os = "windows") {
-        return (has_solution && !solution_patch_applied).then(|| "solution".to_string());
+        return (is_snesrev_zelda3 && has_solution && !solution_patch_applied)
+            .then(|| "solution".to_string());
     }
 
     (is_snesrev_zelda3 && !makefile_patch_applied).then(|| "makefile".to_string())

@@ -58,8 +58,28 @@ pub(crate) fn apply_windows_solution_patch_to_project(project: &Path) -> Result<
         ));
     }
 
+    if !is_snesrev_zelda3_project(project, None) {
+        return Err("The bundled solution patch only applies to snesrev/zelda3.".to_string());
+    }
+
     fs::write(project.join("Zelda3.sln"), SNESREV_ZELDA3_SOLUTION)
         .map_err(|error| format!("Could not replace Zelda3.sln: {error}"))
+}
+
+// Identifies the upstream snesrev/zelda3 layout before applying launcher patches.
+// owner is supplied by nested scan results; the parent-folder fallback covers users
+// who scan the snesrev folder directly.
+pub(crate) fn is_snesrev_zelda3_project(project: &Path, owner: Option<&str>) -> bool {
+    let is_zelda3_repo = project
+        .file_name()
+        .is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("zelda3"));
+    let owner_is_snesrev = owner.is_some_and(|owner| owner.eq_ignore_ascii_case("snesrev"))
+        || project
+            .parent()
+            .and_then(|parent| parent.file_name())
+            .is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("snesrev"));
+
+    is_zelda3_repo && owner_is_snesrev
 }
 
 // Checks whether the selected project already has the launcher-bundled snesrev Makefile.
