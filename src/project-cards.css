@@ -55,16 +55,23 @@
 .card-setup-actions {
   display: grid;
   grid-column: 1 / -1;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
 
 .card-config-actions {
+  grid-template-columns: minmax(0, 1fr);
   align-self: end;
   margin-top: 8px;
 }
 
+.card-config-button-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
 .card-setup-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   align-self: end;
   justify-content: flex-start;
   margin-top: 0;

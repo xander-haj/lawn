@@ -6,10 +6,11 @@
 //
 // Two Tauri commands are exposed:
 //   read_zelda_ini(project_path) -> ZeldaIniSnapshot
-//     Returns the editable [KeyMap] and [GamepadMap] lines for the Controls screen,
-//     plus a derived AspectRatioState view of ExtendedAspectRatio + WindowSize for the
-//     per-card aspect ratio widget. Each line snapshot carries a 1-based line_number
-//     so subsequent writes are addressed unambiguously.
+//     Returns the editable [Graphics], [Sound], [Features], [KeyMap], and
+//     [GamepadMap] lines for the frontend screens, plus a derived AspectRatioState
+//     view of ExtendedAspectRatio + WindowSize for the per-card aspect ratio widget.
+//     Each line snapshot carries a 1-based line_number so subsequent writes are
+//     addressed unambiguously.
 //
 //   update_zelda_ini_line(project_path, line_number, raw_line) -> ActionResult
 //     Replaces one line (1-based) in zelda3.ini with raw_line. The frontend composes
@@ -74,6 +75,9 @@ pub fn update_zelda_ini_line(
 // enough that line.starts_with checks cover every case in the canonical zelda3.ini.
 fn build_snapshot(project_path: &str, contents: &str) -> ZeldaIniSnapshot {
     let mut current_section = String::new();
+    let mut graphics_lines = Vec::new();
+    let mut sound_lines = Vec::new();
+    let mut feature_lines = Vec::new();
     let mut keymap_lines = Vec::new();
     let mut gamepad_lines = Vec::new();
     let mut aspect_value: Option<String> = None;
@@ -124,6 +128,9 @@ fn build_snapshot(project_path: &str, contents: &str) -> ZeldaIniSnapshot {
         // Bucket the editable line into the matching tab's vector so the frontend
         // doesn't have to do any section filtering of its own.
         match current_section.as_str() {
+            "Graphics" => graphics_lines.push(snapshot),
+            "Sound" => sound_lines.push(snapshot),
+            "Features" => feature_lines.push(snapshot),
             "KeyMap" => keymap_lines.push(snapshot),
             "GamepadMap" => gamepad_lines.push(snapshot),
             _ => {}
@@ -138,6 +145,9 @@ fn build_snapshot(project_path: &str, contents: &str) -> ZeldaIniSnapshot {
             window_size_line: window_size_line.unwrap_or(0),
             window_size_value: window_size_value.unwrap_or_else(|| "Auto".to_string()),
         },
+        graphics_lines,
+        sound_lines,
+        feature_lines,
         keymap_lines,
         gamepad_lines,
     }

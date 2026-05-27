@@ -59,6 +59,39 @@ pub struct ActionResult {
     pub stderr: String,
 }
 
+#[derive(Serialize)]
+pub struct FeatureAssetReport {
+    pub storage_dir: String,
+    pub msu_download_url: String,
+    pub sprites_source_url: String,
+    pub shaders_source_url: String,
+    pub msu: FeatureAssetGroup,
+    pub sprites: FeatureAssetGroup,
+    pub shaders: FeatureAssetGroup,
+}
+
+#[derive(Serialize)]
+pub struct FeatureAssetGroup {
+    pub available: bool,
+    pub project_available: bool,
+    pub shared_available: bool,
+    pub options: Vec<FeatureAssetOption>,
+}
+
+#[derive(Serialize)]
+pub struct FeatureAssetOption {
+    pub label: String,
+    pub value: String,
+    pub source: String,
+}
+
+#[derive(Serialize)]
+pub struct SpritePreviewData {
+    pub label: String,
+    pub pixel_data: Vec<u8>,
+    pub palette_data: Vec<u8>,
+}
+
 // Launcher-managed ROM storage status returned to the home screen.
 #[derive(Serialize)]
 pub struct RomStatus {
@@ -106,13 +139,16 @@ pub struct RandomizerRunOptions {
 }
 
 // Per-project zelda3.ini snapshot returned to the frontend. Only the lines that the
-// new card-aspect-ratio widget and controls screen need are surfaced; non-editable
+// card widgets, controls screen, and feature toggles need are surfaced; non-editable
 // lines (pure comments, blanks, section headers, and lines from sections the launcher
 // does not edit) are intentionally omitted to keep the JSON payload small.
 #[derive(Serialize)]
 pub struct ZeldaIniSnapshot {
     pub project_path: String,
     pub aspect_ratio: AspectRatioState,
+    pub graphics_lines: Vec<IniLineSnapshot>,
+    pub sound_lines: Vec<IniLineSnapshot>,
+    pub feature_lines: Vec<IniLineSnapshot>,
     pub keymap_lines: Vec<IniLineSnapshot>,
     pub gamepad_lines: Vec<IniLineSnapshot>,
 }

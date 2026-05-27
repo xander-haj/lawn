@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="./project-cards.css" />
     <link rel="stylesheet" href="./card-aspect-ratio.css" />
     <link rel="stylesheet" href="./controls-screen.css" />
+    <link rel="stylesheet" href="./features-screen.css" />
     <link rel="stylesheet" href="./controller-overlay.css" />
     <link rel="stylesheet" href="./manual-guides.css" />
     <link rel="stylesheet" href="./scan-path-manager.css" />
@@ -186,6 +187,19 @@
           </div>
         </section>
 
+        <section id="featuresPanel" class="view-panel" data-view="features" aria-label="Features editor">
+          <div class="features-shell">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Features</p>
+                <h2 id="featuresTitle">Features</h2>
+                <p id="featuresAuthor" class="features-author"></p>
+              </div>
+            </div>
+            <div id="featuresContent" class="features-content"></div>
+          </div>
+        </section>
+
         <section id="manualGuidePanel" class="view-panel" data-view="manual-guide" aria-label="Manual install guide">
           <div class="manual-guide-shell">
             <div class="section-heading">
@@ -206,7 +220,7 @@
           <div id="activityPanel" class="activity-panel">
             <div class="activity-heading">
               <p>Command output and setup messages.</p>
-              <button id="clearLogButton" class="icon-button small" type="button" title="Clear activity">×</button>
+              <button id="clearLogButton" class="secondary-button small" type="button">Clear</button>
             </div>
             <pre id="logOutput">Ready.</pre>
           </div>

@@ -188,7 +188,7 @@ fn rom_status(app: &tauri::AppHandle) -> Result<RomStatus, String> {
 }
 
 // Resolves the app-owned directory where user-supplied ROMs are stored outside cloned repos.
-fn rom_storage_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+pub(crate) fn rom_storage_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     app.path()
         .app_data_dir()
         .map(|path| path.join(ROM_STORAGE_DIR))

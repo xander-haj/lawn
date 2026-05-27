@@ -6,6 +6,10 @@ mod bundled_tools;
 mod discovery;
 mod env_checks;
 mod external_links;
+mod feature_asset_catalog;
+mod feature_asset_paths;
+mod feature_asset_store;
+mod feature_assets;
 // Owns line-preserving read/write of project-local zelda3.ini files for the per-card
 // aspect ratio widget and the Controls screen.
 mod ini_config;
@@ -32,6 +36,12 @@ pub fn run() {
             asset_builds::extract_assets_visual_studio,
             asset_builds::extract_assets_tcc,
             external_links::open_external_url,
+            feature_assets::read_feature_assets,
+            feature_assets::clone_feature_asset,
+            feature_assets::choose_and_store_msu,
+            feature_assets::store_msu_paths,
+            feature_assets::install_feature_asset,
+            feature_assets::read_sprite_preview,
             makefile_patches::apply_snesrev_makefile_patch,
             makefile_patches::apply_snesrev_solution_patch,
             rom_storage::stored_rom_status,

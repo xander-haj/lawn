@@ -106,7 +106,7 @@ function buildProjectCard(candidate, helpers) {
 
 // Centralizes the card HTML so wireCardButtons can stay focused on event wiring. The
 // card now has FOUR grid rows: status/actions, title-block, card-config-actions
-// (aspect + controls), and card-setup-actions (environment + randomizer).
+// (aspect row + features/controls), and card-setup-actions (environment + randomizer).
 function buildCardMarkup({ statusClass, statusLabel, playDisabled, nameSafe, authorLine, patchButton }) {
   return `
     <span class="status ${statusClass}">${statusLabel}</span>
@@ -120,7 +120,10 @@ function buildCardMarkup({ statusClass, statusLabel, playDisabled, nameSafe, aut
     </div>
     <div class="card-config-actions">
       <div class="card-aspect-mount"></div>
-      <button class="secondary-button controls-button" type="button">Controls</button>
+      <div class="card-config-button-row">
+        <button class="secondary-button features-button" type="button">Features</button>
+        <button class="secondary-button controls-button" type="button">Controls</button>
+      </div>
     </div>
     <div class="card-setup-actions">
       <button class="secondary-button environment-button" type="button">Environment</button>
@@ -149,6 +152,12 @@ function wireCardButtons(card, candidate, helpers) {
     event.stopPropagation();
     await selectProject(candidate.path);
     showView("controls");
+  });
+
+  card.querySelector(".features-button").addEventListener("click", async (event) => {
+    event.stopPropagation();
+    await selectProject(candidate.path);
+    showView("features");
   });
 
   card.querySelector(".play-button").addEventListener("click", async (event) => {

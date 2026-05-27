@@ -6,6 +6,7 @@ import { connectRandomizerSetup } from "./randomizer-setup.js";
 import { connectProjectCards } from "./project-cards.js";
 import { connectEnvironmentScreen } from "./environment-screen.js";
 import { connectControlsScreen } from "./controls-screen.js";
+import { connectFeaturesScreen } from "./features-screen.js";
 import {
   connectScanPathManager,
   loadStoredClonePath,
@@ -111,6 +112,9 @@ function showView(view) {
   // Refresh the per-view content lazily so screens always reflect on-disk truth.
   if (view === "controls") {
     controlsScreen.refresh();
+  }
+  if (view === "features") {
+    featuresScreen.refresh();
   }
 }
 
@@ -235,6 +239,7 @@ const helpers = {
 const projectCards = connectProjectCards(helpers);
 const environmentScreen = connectEnvironmentScreen(helpers);
 const controlsScreen = connectControlsScreen(helpers);
+const featuresScreen = connectFeaturesScreen(helpers);
 connectScanPathManager(helpers);
 
 elements.refreshButton.addEventListener("click", refreshScan);
