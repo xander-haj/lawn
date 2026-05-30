@@ -18,9 +18,9 @@
   ],
   "linux": [
     "Upload your legally obtained US ROM with Upload SFC, or place it as zelda3.sfc in the Z3R folder.",
-    "Press the Create venv button.",
+    "Press the Create venv button. On Debian/Ubuntu, install venv support first if Python asks for python3-venv.",
     "After venv activation, press the install dependencies button",
-    "Install SDL2 development files with your OS package manager before building.",
+    "Install SDL2 development files with `sudo apt-get install libsdl2-dev` on apt-based Linux/Unix systems.",
     "Press the Build assets button to extract assets, compile zelda3_assets.dat, and build the executable.",
     "When it finishes, go back to the home menu to Play or Randomize."
   ]

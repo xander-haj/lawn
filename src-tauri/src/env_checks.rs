@@ -127,8 +127,19 @@ fn check_venv(project_path: Option<&Path>) -> EnvironmentCheck {
         id: "venv".to_string(),
         label: "Python virtual environment".to_string(),
         state: "missing".to_string(),
-        detail: "Create one with `python -m venv .venv` inside the Z3R folder.".to_string(),
+        detail: missing_venv_detail(),
     }
+}
+
+// Gives Linux users the Debian/Ubuntu package prerequisite before the Create venv action can fail.
+fn missing_venv_detail() -> String {
+    if cfg!(target_os = "linux") {
+        return "Create one with the Create venv button. On Debian/Ubuntu, install `python3-venv` \
+if Python reports ensurepip is missing."
+            .to_string();
+    }
+
+    "Create one with `python -m venv .venv` inside the Z3R folder.".to_string()
 }
 
 // Checks whether the selected project's venv can import the Python packages used by asset extraction.

@@ -261,8 +261,12 @@
       "summary": "Python is needed for the virtual environment and asset extraction tools.",
       "steps": [
         {
-          "title": "Install Python 3 and venv support",
-          "text": "Install your distro's Python 3 package. Debian and Ubuntu users may also need `python3-venv`."
+          "title": "Install Python 3",
+          "text": "Install your distro's Python 3 package."
+        },
+        {
+          "title": "Install venv support on Debian/Ubuntu",
+          "text": "Run `sudo apt-get install python3-venv`, or install the versioned package Python reports."
         },
         {
           "title": "Confirm Python works",
@@ -304,7 +308,11 @@
       "steps": [
         {
           "title": "Install SDL2 development package",
-          "text": "Install your distro's SDL2 development package, usually named `libsdl2-dev` or `sdl2-devel`."
+          "text": "On Debian/Ubuntu or apt-based Unix systems, run `sudo apt-get install libsdl2-dev`."
+        },
+        {
+          "title": "Other Linux distributions",
+          "text": "Use your distro's SDL2 development package, usually `libsdl2-dev` or `sdl2-devel`."
         },
         {
           "title": "Confirm sdl2-config",

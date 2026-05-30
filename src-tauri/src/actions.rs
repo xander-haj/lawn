@@ -167,11 +167,86 @@ pub fn create_venv(app: tauri::AppHandle, project_path: String) -> Result<Action
     let project = PathBuf::from(project_path);
     let program = python_program(&app);
 
-    run_command(
+    let mut result = run_command(
         &program,
         &["-m", "venv", ".venv"],
         &project,
         "Virtual environment created.",
+    )?;
+
+    if !result.ok {
+        result = add_venv_creation_guidance(result, &program, &project);
+    }
+
+    Ok(result)
+}
+
+// Rewrites Debian/Ubuntu's missing ensurepip failure into an installable package hint.
+fn add_venv_creation_guidance(
+    mut result: ActionResult,
+    program: &str,
+    project: &Path,
+) -> ActionResult {
+    let output = format!("{}\n{}", result.stdout, result.stderr);
+
+    if !is_missing_ensurepip_error(&output) {
+        return result;
+    }
+
+    result.message = if cfg!(target_os = "linux") {
+        linux_venv_support_message(&python_version_venv_package(program, project))
+    } else {
+        "Python could not create .venv because ensurepip is missing. Install Python venv support, \
+then press Create venv again."
+            .to_string()
+    };
+
+    result
+}
+
+// Detects the common Python venv failure shown by Debian and Ubuntu when python*-venv is missing.
+fn is_missing_ensurepip_error(output: &str) -> bool {
+    output.contains("ensurepip is not available")
+        || output.contains("No module named ensurepip")
+        || output.contains("python3-venv")
+        || (output.contains("python3.") && output.contains("-venv"))
+}
+
+// Asks the selected Python for its major/minor version so Ubuntu users see the right venv package.
+fn python_version_venv_package(program: &str, cwd: &Path) -> String {
+    let output = Command::new(program)
+        .args([
+            "-c",
+            "import sys; print(f'python{sys.version_info.major}.{sys.version_info.minor}-venv')",
+        ])
+        .current_dir(cwd)
+        .output();
+
+    let Ok(output) = output else {
+        return "python3-venv".to_string();
+    };
+
+    let package = String::from_utf8_lossy(&output.stdout).trim().to_string();
+
+    if output.status.success() && !package.is_empty() {
+        package
+    } else {
+        "python3-venv".to_string()
+    }
+}
+
+// Keeps the Ubuntu guidance specific without hiding the generic package fallback used by some distros.
+fn linux_venv_support_message(version_package: &str) -> String {
+    if version_package == "python3-venv" {
+        return "Python could not create .venv because ensurepip is missing. On Debian/Ubuntu, run \
+`sudo apt-get install python3-venv`, then press Create venv again."
+            .to_string();
+    }
+
+    format!(
+        "Python could not create .venv because ensurepip is missing. On Debian/Ubuntu, run \
+`sudo apt-get install {version_package}`. If that package is unavailable, run \
+`sudo apt-get install python3-venv`, then press Create venv again."
     )
 }
 
