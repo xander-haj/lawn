@@ -98,6 +98,8 @@ jobs:
           done < <(
             find src-tauri/target -type f \( \
               -path '*/release/bundle/appimage/*.AppImage' \
+              -o -path 'src-tauri/target/release/z3r-launcher.exe' \
+              -o -path 'src-tauri/target/*/release/z3r-launcher.exe' \
               -o -path '*/release/bundle/deb/*.deb' \
               -o -path '*/release/bundle/rpm/*.rpm' \
               -o -path '*/release/bundle/dmg/*.dmg' \

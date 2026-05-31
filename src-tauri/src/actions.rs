@@ -1,11 +1,12 @@
 // This module performs user-triggered actions with fixed commands and arguments.
 use crate::bundled_tools::{git_program, python_program};
+use crate::command_env::platform_command;
 use crate::models::ActionResult;
 use crate::paths::{display_path, resolve_scan_root, venv_python, Z3R_REPO_URL};
 use crate::rom_storage::copy_stored_rom_to_project;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use tauri_plugin_dialog::DialogExt;
 
 // Launches the selected game executable with its own folder as the working directory.
@@ -17,7 +18,7 @@ pub fn launch_game(executable_path: String) -> Result<ActionResult, String> {
         .ok_or_else(|| "The executable path has no parent folder.".to_string())?;
     let working_dir = launch_working_dir(&executable, executable_dir);
 
-    Command::new(&executable)
+    platform_command(&display_path(&executable))
         .current_dir(working_dir)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -214,7 +215,7 @@ fn is_missing_ensurepip_error(output: &str) -> bool {
 
 // Asks the selected Python for its major/minor version so Ubuntu users see the right venv package.
 fn python_version_venv_package(program: &str, cwd: &Path) -> String {
-    let output = Command::new(program)
+    let output = platform_command(program)
         .args([
             "-c",
             "import sys; print(f'python{sys.version_info.major}.{sys.version_info.minor}-venv')",
@@ -359,7 +360,7 @@ pub(crate) fn run_command(
     cwd: &Path,
     success_message: &str,
 ) -> Result<ActionResult, String> {
-    let output = Command::new(program)
+    let output = platform_command(program)
         .args(args)
         .current_dir(cwd)
         .output()

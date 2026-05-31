@@ -132,7 +132,13 @@ fn run_visual_studio_build(project: &Path) -> Result<ActionResult, String> {
 
     run_command(
         &msbuild_program,
-        &["Zelda3.sln", "/p:Configuration=Release", "/p:Platform=x64"],
+        &[
+            "Zelda3.sln",
+            "/restore",
+            "/p:RestorePackagesConfig=true",
+            "/p:Configuration=Release",
+            "/p:Platform=x64",
+        ],
         project,
         "Visual Studio build complete.",
     )

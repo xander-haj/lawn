@@ -2,11 +2,11 @@
 use crate::bundled_tools::{
     bundled_detail, bundled_git, bundled_python, bundled_sdl2_dll, bundled_tcc, find_msbuild,
 };
+use crate::command_env::platform_command;
 use crate::models::{EnvironmentCheck, EnvironmentReport};
 use crate::paths::{display_path, resolve_scan_root, venv_python};
 use std::env;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 // Reports installed tools and project-local setup state without installing anything.
 #[tauri::command]
@@ -293,7 +293,7 @@ fn check_command(
     args: &[&str],
     missing_detail: &str,
 ) -> EnvironmentCheck {
-    match Command::new(program).args(args).output() {
+    match platform_command(program).args(args).output() {
         Ok(output) if output.status.success() => {
             let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
             let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();

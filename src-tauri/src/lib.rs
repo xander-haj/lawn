@@ -3,6 +3,7 @@
 mod actions;
 mod asset_builds;
 mod bundled_tools;
+mod command_env;
 mod discovery;
 mod env_checks;
 mod external_links;
