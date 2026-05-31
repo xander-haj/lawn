@@ -19,8 +19,39 @@ mod paths;
 mod randomizer;
 mod rom_storage;
 
+#[cfg(target_os = "linux")]
+const LINUX_GIO_MODULE_DIR: &str = "/nonexistent";
+#[cfg(target_os = "linux")]
+const LINUX_GIO_VFS: &str = "local";
+#[cfg(target_os = "linux")]
+const LINUX_WEBKIT_DISABLE_DMABUF_RENDERER: &str = "1";
+
+// Configures Linux process environment before GTK and WebKitGTK initialize. It accepts no
+// parameters, returns nothing, and only changes this process plus children spawned by WebKitGTK.
+#[cfg(target_os = "linux")]
+fn configure_linux_webview_runtime() {
+    // AppImage builds can load the host GVFS module against the bundled GLib/GIO version.
+    std::env::set_var("GIO_USE_VFS", LINUX_GIO_VFS);
+    // Keeping GIO away from host module directories avoids ABI mismatches in libgvfsdbus.so.
+    std::env::set_var("GIO_MODULE_DIR", LINUX_GIO_MODULE_DIR);
+    // User-level extra module paths can reintroduce the same host-module ABI mismatch.
+    std::env::remove_var("GIO_EXTRA_MODULES");
+    // WebKitGTK's DMABuf renderer can abort during EGL display creation on affected drivers.
+    std::env::set_var(
+        "WEBKIT_DISABLE_DMABUF_RENDERER",
+        LINUX_WEBKIT_DISABLE_DMABUF_RENDERER,
+    );
+}
+
+// Keeps the startup path identical on non-Linux platforms. It accepts no parameters, returns
+// nothing, and has no side effects.
+#[cfg(not(target_os = "linux"))]
+fn configure_linux_webview_runtime() {}
+
 // Starts Tauri and exposes only the launcher commands that the frontend needs.
 pub fn run() {
+    configure_linux_webview_runtime();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![

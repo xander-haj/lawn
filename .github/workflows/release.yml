@@ -34,12 +34,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # A universal DMG runs natively on Apple Silicon while preserving Intel Mac support.
           - platform: macos-latest
-            args: --target aarch64-apple-darwin
-            rust_targets: aarch64-apple-darwin
-          - platform: macos-latest
-            args: --target x86_64-apple-darwin
-            rust_targets: x86_64-apple-darwin
+            args: --target universal-apple-darwin
+            rust_targets: aarch64-apple-darwin x86_64-apple-darwin
           - platform: ubuntu-22.04
             args: ""
             rust_targets: ""
