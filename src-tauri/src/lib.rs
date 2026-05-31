@@ -21,9 +21,13 @@ mod randomizer;
 mod rom_storage;
 
 #[cfg(target_os = "linux")]
+const LINUX_GDK_BACKEND: &str = "x11,wayland";
+#[cfg(target_os = "linux")]
 const LINUX_GIO_MODULE_DIR: &str = "/nonexistent";
 #[cfg(target_os = "linux")]
 const LINUX_GIO_VFS: &str = "local";
+#[cfg(target_os = "linux")]
+const LINUX_WEBKIT_DISABLE_COMPOSITING_MODE: &str = "1";
 #[cfg(target_os = "linux")]
 const LINUX_WEBKIT_DISABLE_DMABUF_RENDERER: &str = "1";
 
@@ -31,17 +35,34 @@ const LINUX_WEBKIT_DISABLE_DMABUF_RENDERER: &str = "1";
 // parameters, returns nothing, and only changes this process plus children spawned by WebKitGTK.
 #[cfg(target_os = "linux")]
 fn configure_linux_webview_runtime() {
+    // Prefer X11/XWayland for AppImage runs because Wayland EGL startup is crash-prone here.
+    set_env_if_missing("GDK_BACKEND", LINUX_GDK_BACKEND);
     // AppImage builds can load the host GVFS module against the bundled GLib/GIO version.
     std::env::set_var("GIO_USE_VFS", LINUX_GIO_VFS);
     // Keeping GIO away from host module directories avoids ABI mismatches in libgvfsdbus.so.
     std::env::set_var("GIO_MODULE_DIR", LINUX_GIO_MODULE_DIR);
     // User-level extra module paths can reintroduce the same host-module ABI mismatch.
     std::env::remove_var("GIO_EXTRA_MODULES");
+    // Disabling compositing keeps WebKitGTK off the EGL path that aborts on affected systems.
+    std::env::set_var(
+        "WEBKIT_DISABLE_COMPOSITING_MODE",
+        LINUX_WEBKIT_DISABLE_COMPOSITING_MODE,
+    );
     // WebKitGTK's DMABuf renderer can abort during EGL display creation on affected drivers.
     std::env::set_var(
         "WEBKIT_DISABLE_DMABUF_RENDERER",
         LINUX_WEBKIT_DISABLE_DMABUF_RENDERER,
     );
+}
+
+// Sets a process environment variable only when the user/session has not made an explicit choice.
+// The key and value parameters are copied into this process environment, and the function returns
+// nothing after preserving any existing override.
+#[cfg(target_os = "linux")]
+fn set_env_if_missing(key: &str, value: &str) {
+    if std::env::var_os(key).is_none() {
+        std::env::set_var(key, value);
+    }
 }
 
 // Keeps the startup path identical on non-Linux platforms. It accepts no parameters, returns
