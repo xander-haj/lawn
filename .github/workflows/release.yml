@@ -93,6 +93,68 @@ jobs:
         shell: bash
         run: cargo tauri build ${{ matrix.args }}
 
+      - name: Repackage Linux AppImage
+        if: matrix.platform == 'ubuntu-22.04'
+        shell: bash
+        env:
+          APPIMAGETOOL_URL: >-
+            https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+        run: |
+          shopt -s nullglob
+          appimages=(src-tauri/target/release/bundle/appimage/*.AppImage)
+
+          if [ "${#appimages[@]}" -eq 0 ]; then
+            echo "No Tauri AppImage found to repackage."
+            exit 1
+          fi
+
+          app_id="io.github.xander_haj.Z3RLauncher"
+          appdir="appimage-work/AppDir"
+          desktop_file="packaging/appimage/${app_id}.desktop"
+          icon_file="src-tauri/icons/128x128.png"
+
+          rm -rf appimage-work
+          mkdir -p appimage-work dist
+          cp "${appimages[0]}" appimage-work/tauri.AppImage
+          chmod +x appimage-work/tauri.AppImage
+
+          (
+            cd appimage-work
+            ./tauri.AppImage --appimage-extract
+            mv squashfs-root AppDir
+          )
+
+          mkdir -p \
+            "${appdir}/usr/share/applications" \
+            "${appdir}/usr/share/icons/hicolor/128x128/apps"
+          find "${appdir}" -maxdepth 1 -name '*.desktop' -exec rm -f {} +
+          find "${appdir}/usr/share/applications" -maxdepth 1 -name '*.desktop' -exec rm -f {} +
+
+          install -Dm755 packaging/appimage/AppRun "${appdir}/AppRun"
+          install -Dm644 "${desktop_file}" "${appdir}/${app_id}.desktop"
+          install -Dm644 "${desktop_file}" \
+            "${appdir}/usr/share/applications/${app_id}.desktop"
+          install -Dm644 "${icon_file}" "${appdir}/${app_id}.png"
+          install -Dm644 "${icon_file}" \
+            "${appdir}/usr/share/icons/hicolor/128x128/apps/${app_id}.png"
+
+          wget -q "${APPIMAGETOOL_URL}" -O appimage-work/appimagetool-x86_64.AppImage
+          chmod +x appimage-work/appimagetool-x86_64.AppImage
+
+          (
+            cd appimage-work
+            ./appimagetool-x86_64.AppImage --appimage-extract
+            mv squashfs-root appimagetool-root
+          )
+
+          ARCH=x86_64 \
+            appimage-work/appimagetool-root/AppRun \
+            "${appdir}" \
+            dist/Z3R-Launcher-linux-x64.AppImage
+          chmod +x dist/Z3R-Launcher-linux-x64.AppImage
+          tar -czf dist/Z3R-Launcher-linux-x64.AppImage.tar.gz \
+            -C dist Z3R-Launcher-linux-x64.AppImage
+
       - name: Collect release assets
         shell: bash
         run: |
@@ -118,11 +180,15 @@ jobs:
 
           case "${{ matrix.platform }}" in
             ubuntu-22.04)
-              copy_first "src-tauri/target/release/bundle/appimage/*.AppImage" \
-                "dist/Z3R-Launcher-linux-x64.AppImage" required
-              chmod +x "dist/Z3R-Launcher-linux-x64.AppImage"
-              tar -czf "dist/Z3R-Launcher-linux-x64.AppImage.tar.gz" \
-                -C dist "Z3R-Launcher-linux-x64.AppImage"
+              if [ ! -f "dist/Z3R-Launcher-linux-x64.AppImage" ]; then
+                copy_first "src-tauri/target/release/bundle/appimage/*.AppImage" \
+                  "dist/Z3R-Launcher-linux-x64.AppImage" required
+              fi
+              if [ ! -f "dist/Z3R-Launcher-linux-x64.AppImage.tar.gz" ]; then
+                chmod +x "dist/Z3R-Launcher-linux-x64.AppImage"
+                tar -czf "dist/Z3R-Launcher-linux-x64.AppImage.tar.gz" \
+                  -C dist "Z3R-Launcher-linux-x64.AppImage"
+              fi
               copy_first "src-tauri/target/release/bundle/deb/*.deb" \
                 "dist/Z3R-Launcher-linux-x64.deb" optional
               copy_first "src-tauri/target/release/bundle/rpm/*.rpm" \

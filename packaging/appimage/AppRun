@@ -1,0 +1,19 @@
+#!/bin/sh
+set -eu
+
+appdir="${APPDIR:-$(dirname "$(readlink -f "$0")")}"
+
+export GDK_BACKEND="${GDK_BACKEND:-x11,wayland}"
+export GIO_USE_VFS="local"
+export GIO_MODULE_DIR="/nonexistent"
+unset GIO_EXTRA_MODULES
+export WEBKIT_DISABLE_COMPOSITING_MODE="1"
+export WEBKIT_DISABLE_DMABUF_RENDERER="1"
+
+for lib_dir in "${appdir}/usr/lib" "${appdir}/usr/lib/x86_64-linux-gnu"; do
+  if [ -d "${lib_dir}" ]; then
+    export LD_LIBRARY_PATH="${lib_dir}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+  fi
+done
+
+exec "${appdir}/usr/bin/z3r-launcher" "$@"
