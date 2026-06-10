@@ -1,10 +1,11 @@
 // This module owns launcher-managed ROM storage and the copy step that seeds
 // newly cloned projects with the user's legally supplied zelda3.sfc file.
+use crate::command_env::platform_command;
 use crate::models::{ActionResult, RomStatus};
 use crate::paths::display_path;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
 
@@ -209,15 +210,15 @@ fn has_sfc_extension(path: &Path) -> bool {
 // Delegates folder opening to the platform's native explorer command without invoking a shell.
 fn open_folder(path: &Path) -> Result<(), String> {
     let mut command = if cfg!(target_os = "windows") {
-        let mut command = Command::new("explorer");
+        let mut command = platform_command("explorer");
         command.arg(path);
         command
     } else if cfg!(target_os = "macos") {
-        let mut command = Command::new("open");
+        let mut command = platform_command("open");
         command.arg(path);
         command
     } else {
-        let mut command = Command::new("xdg-open");
+        let mut command = platform_command("xdg-open");
         command.arg(path);
         command
     };

@@ -1,5 +1,6 @@
 // This module opens trusted documentation URLs in the user's default browser.
-use std::process::{Command, Stdio};
+use crate::command_env::platform_command;
+use std::process::Stdio;
 
 // Opens an external documentation URL with the platform-native opener.
 #[tauri::command]
@@ -9,15 +10,15 @@ pub fn open_external_url(url: String) -> Result<(), String> {
     }
 
     let mut command = if cfg!(target_os = "windows") {
-        let mut command = Command::new("rundll32");
+        let mut command = platform_command("rundll32");
         command.args(["url.dll,FileProtocolHandler", &url]);
         command
     } else if cfg!(target_os = "macos") {
-        let mut command = Command::new("open");
+        let mut command = platform_command("open");
         command.arg(&url);
         command
     } else {
-        let mut command = Command::new("xdg-open");
+        let mut command = platform_command("xdg-open");
         command.arg(&url);
         command
     };
