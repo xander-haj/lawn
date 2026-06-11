@@ -1,11 +1,10 @@
 // This module owns launcher-managed ROM storage and the copy step that seeds
 // newly cloned projects with the user's legally supplied zelda3.sfc file.
-use crate::command_env::platform_command;
+use crate::command_env::open_path;
 use crate::models::{ActionResult, RomStatus};
 use crate::paths::display_path;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Stdio;
 use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
 
@@ -57,7 +56,7 @@ pub fn open_stored_rom_folder(app: tauri::AppHandle) -> Result<ActionResult, Str
         )
     })?;
 
-    open_folder(&storage_dir)?;
+    open_path(&storage_dir, "ROM storage folder")?;
 
     Ok(ActionResult {
         ok: true,
@@ -205,30 +204,4 @@ fn stored_rom_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
 fn has_sfc_extension(path: &Path) -> bool {
     path.extension()
         .is_some_and(|extension| extension.to_string_lossy().eq_ignore_ascii_case("sfc"))
-}
-
-// Delegates folder opening to the platform's native explorer command without invoking a shell.
-fn open_folder(path: &Path) -> Result<(), String> {
-    let mut command = if cfg!(target_os = "windows") {
-        let mut command = platform_command("explorer");
-        command.arg(path);
-        command
-    } else if cfg!(target_os = "macos") {
-        let mut command = platform_command("open");
-        command.arg(path);
-        command
-    } else {
-        let mut command = platform_command("xdg-open");
-        command.arg(path);
-        command
-    };
-
-    command
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .map_err(|error| format!("Could not open ROM storage folder: {error}"))?;
-
-    Ok(())
 }

@@ -4,7 +4,7 @@
 use std::env;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 // Builds a Command with platform-specific PATH fixes applied. The program parameter is the
 // executable name or path to run, and the returned Command is ready for args/current_dir.
@@ -23,6 +23,49 @@ pub(crate) fn platform_command_in_dir(program: &str, directory: &Path) -> Comman
     let mut command = platform_command(program);
     command.current_dir(directory);
     command
+}
+
+// Opens a folder/file path with the platform file manager or portal-backed opener.
+pub(crate) fn open_path(path: &Path, label: &str) -> Result<(), String> {
+    let attempts = open_path_attempts(path);
+    let mut errors = Vec::new();
+
+    for mut command in attempts {
+        match command
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+        {
+            Ok(status) if status.success() => return Ok(()),
+            Ok(status) => errors.push(format!("opener exited with status {status}")),
+            Err(error) => errors.push(error.to_string()),
+        }
+    }
+
+    Err(format!("Could not open {label}: {}", errors.join("; ")))
+}
+
+fn open_path_attempts(path: &Path) -> Vec<Command> {
+    if cfg!(target_os = "windows") {
+        let mut command = platform_command("explorer");
+        command.arg(path);
+        return vec![command];
+    }
+
+    if cfg!(target_os = "macos") {
+        let mut command = platform_command("open");
+        command.arg(path);
+        return vec![command];
+    }
+
+    let mut xdg_open = platform_command("xdg-open");
+    xdg_open.arg(path);
+
+    let mut gio_open = platform_command("gio");
+    gio_open.arg("open").arg(path);
+
+    vec![xdg_open, gio_open]
 }
 
 // Resolves bare macOS tool names through the augmented PATH before std::process performs lookup.

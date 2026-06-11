@@ -25,6 +25,8 @@ mod runtime_info;
 #[cfg(target_os = "linux")]
 const LINUX_GDK_BACKEND: &str = "x11,wayland";
 #[cfg(target_os = "linux")]
+const LINUX_GTK_USE_PORTAL: &str = "1";
+#[cfg(target_os = "linux")]
 const LINUX_GIO_MODULE_DIR: &str = "/nonexistent";
 #[cfg(target_os = "linux")]
 const LINUX_GIO_VFS: &str = "local";
@@ -37,14 +39,23 @@ const LINUX_WEBKIT_DISABLE_DMABUF_RENDERER: &str = "1";
 // parameters, returns nothing, and only changes this process plus children spawned by WebKitGTK.
 #[cfg(target_os = "linux")]
 fn configure_linux_webview_runtime() {
+    let flatpak = crate::runtime_info::is_flatpak_runtime();
+
     // Prefer X11/XWayland for AppImage runs because Wayland EGL startup is crash-prone here.
     set_env_if_missing("GDK_BACKEND", LINUX_GDK_BACKEND);
-    // AppImage builds can load the host GVFS module against the bundled GLib/GIO version.
-    std::env::set_var("GIO_USE_VFS", LINUX_GIO_VFS);
-    // Keeping GIO away from host module directories avoids ABI mismatches in libgvfsdbus.so.
-    std::env::set_var("GIO_MODULE_DIR", LINUX_GIO_MODULE_DIR);
-    // User-level extra module paths can reintroduce the same host-module ABI mismatch.
-    std::env::remove_var("GIO_EXTRA_MODULES");
+
+    if flatpak {
+        // Steam Deck/Flatpak file pickers should go through xdg-desktop-portal.
+        std::env::set_var("GTK_USE_PORTAL", LINUX_GTK_USE_PORTAL);
+    } else {
+        // AppImage builds can load the host GVFS module against the bundled GLib/GIO version.
+        std::env::set_var("GIO_USE_VFS", LINUX_GIO_VFS);
+        // Keeping GIO away from host module directories avoids ABI mismatches in libgvfsdbus.so.
+        std::env::set_var("GIO_MODULE_DIR", LINUX_GIO_MODULE_DIR);
+        // User-level extra module paths can reintroduce the same host-module ABI mismatch.
+        std::env::remove_var("GIO_EXTRA_MODULES");
+    }
+
     // Disabling compositing keeps WebKitGTK off the EGL path that aborts on affected systems.
     std::env::set_var(
         "WEBKIT_DISABLE_COMPOSITING_MODE",

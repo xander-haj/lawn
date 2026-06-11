@@ -1,6 +1,6 @@
 // This module performs user-triggered actions with fixed commands and arguments.
 use crate::bundled_tools::{git_program, python_program};
-use crate::command_env::{platform_command, platform_command_in_dir};
+use crate::command_env::{open_path, platform_command_in_dir};
 use crate::models::ActionResult;
 use crate::paths::{
     display_path, resolve_scan_root, venv_python, Z3R_BETA_REPO_URL, Z3R_REPO_URL,
@@ -186,23 +186,7 @@ pub fn open_project_folder(project_path: String) -> Result<ActionResult, String>
         ));
     }
 
-    let mut command = if cfg!(target_os = "windows") {
-        let mut command = platform_command("explorer");
-        command.arg(&project);
-        command
-    } else if cfg!(target_os = "macos") {
-        let mut command = platform_command("open");
-        command.arg(&project);
-        command
-    } else {
-        let mut command = platform_command("xdg-open");
-        command.arg(&project);
-        command
-    };
-
-    command
-        .spawn()
-        .map_err(|error| format!("Could not open project folder: {error}"))?;
+    open_path(&project, "project folder")?;
 
     Ok(ActionResult {
         ok: true,

@@ -49,12 +49,12 @@ Add a repo scan path, select it as the clone destination, then clone."
 }
 
 #[cfg(target_os = "linux")]
-fn is_flatpak_runtime() -> bool {
+pub(crate) fn is_flatpak_runtime() -> bool {
     Path::new("/.flatpak-info").is_file()
 }
 
 #[cfg(not(target_os = "linux"))]
-fn is_flatpak_runtime() -> bool {
+pub(crate) fn is_flatpak_runtime() -> bool {
     false
 }
 
