@@ -19,6 +19,8 @@ Main features:
 - Edits selected `zelda3.ini` settings, including aspect ratio, controls, gamepad settings, and feature toggles.
 - Manages optional feature assets such as MSU packs, sprites, and shaders.
 - Provides a randomizer setup screen for supported Z3R folders.
+- Checks GitHub Releases from the Rust backend and installs launcher updates with the
+  matching platform package instead of opening a browser download page.
 
 The launcher does not include a ROM. Users must provide their own legally obtained compatible US `.sfc` file.
 
@@ -76,9 +78,12 @@ cargo tauri build
 
 ### Windows Release Toolkit
 
-The release workflow can bundle portable Git, Python, TCC, and SDL2 into the app resources so Windows users have fewer setup steps after installing a prebuilt release.
+The Windows setup exe always bundles portable Git, Python, TCC, and SDL2 from
+`src-tauri/bundled-tools/windows/`. The release workflow prepares that toolkit, verifies the required files,
+and then runs the Tauri build so the setup exe cannot be published without the bundled tools.
 
-To prepare that toolkit locally before a Windows release build, install 7-Zip and run from Windows Terminal or a bash-style shell:
+To populate or refresh that toolkit locally before a Windows release, install 7-Zip and run from Windows
+Terminal or a bash-style shell:
 
 ```bash
 powershell.exe -ExecutionPolicy Bypass -File ./scripts/prepare-windows-toolkit.ps1
@@ -86,7 +91,8 @@ powershell.exe -ExecutionPolicy Bypass -File ./scripts/verify-windows-toolkit.ps
 cargo tauri build
 ```
 
-The generated files live under `src-tauri/bundled-tools/windows/` and are intentionally not committed.
+The generated files live under `src-tauri/bundled-tools/windows/`; the committed source tree only keeps the
+placeholder file.
 
 ## macOS Build
 
@@ -164,10 +170,29 @@ Linux:
 - SDL2 development files, for example `sudo apt-get install libsdl2-dev` on Debian/Ubuntu
 - `python3-venv` on Debian/Ubuntu if Python cannot create a virtual environment
 
+Prebuilt Flatpak releases use the GNOME SDK runtime so Steam Deck and other Flatpak users can run the
+launcher-managed Git, Python, venv, pip, SDL2, and Make build path inside the sandbox instead of installing
+those tools on the host OS. The Flatpak can work in the home folder and Steam Deck removable-media paths
+under `/run/media`.
+
 Windows:
 
 - Visual Studio Build Tools with `Desktop development with C++` for the MSBuild route, or
 - TCC and SDL2 for the lightweight TCC route
 - Windows Terminal or another terminal app for running setup commands
 
-Prebuilt Windows releases may include bundled portable Git, Python, TCC, and SDL2 for the launcher-managed setup path. MSBuild is still required if you choose the Visual Studio build route.
+Prebuilt Windows releases include bundled portable Git, Python, TCC, and SDL2 for the launcher-managed setup path.
+MSBuild is still required if you choose the Visual Studio build route.
+
+## Launcher Updates
+
+The top-bar Updates button checks the latest published GitHub Release for `xander-haj/lawn`.
+When a newer release exists, the launcher downloads and starts the matching package:
+
+- Windows uses `Z3R-Launcher-windows-x64-setup.exe`, preserving the required bundled Git, Python, SDL2,
+  and TCC toolkit.
+- macOS uses the universal DMG and replaces the running `.app` bundle after the launcher closes.
+- AppImage releases replace the running AppImage file and relaunch it.
+- Flatpak releases download the `.flatpak` bundle and run the host Flatpak reinstall command for the current user.
+
+The updater does not execute remote scripts. It downloads release packages and runs fixed platform installer commands.

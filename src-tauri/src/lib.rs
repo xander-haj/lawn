@@ -14,6 +14,9 @@ mod feature_assets;
 // Owns line-preserving read/write of project-local zelda3.ini files for the per-card
 // aspect ratio widget and the Controls screen.
 mod ini_config;
+mod launcher_update_downloads;
+mod launcher_update_installers;
+mod launcher_updates;
 mod makefile_patches;
 mod models;
 mod paths;
@@ -93,6 +96,7 @@ pub fn run() {
             discovery::scan_siblings,
             runtime_info::app_runtime_info,
             runtime_info::launcher_version,
+            launcher_updates::install_launcher_update,
             env_checks::check_environment,
             actions::launch_game,
             actions::choose_scan_root,

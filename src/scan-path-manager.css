@@ -97,11 +97,24 @@
   align-items: end;
 }
 
+.clone-path-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.clone-submit-row {
+  display: grid;
+  grid-template-columns: 176px auto;
+  gap: 12px;
+  align-items: center;
+}
+
 .repo-checkbox-row {
   display: inline-flex;
   align-items: center;
   gap: 10px;
+  min-height: 48px;
   color: var(--text);
+  white-space: nowrap;
 }
 
 .repo-checkbox-row input,
@@ -239,5 +252,9 @@
   .clone-path-row,
   .clone-custom-row {
     grid-template-columns: 1fr;
+  }
+
+  .clone-submit-row {
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 }

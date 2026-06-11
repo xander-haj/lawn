@@ -278,6 +278,14 @@ button:hover {
   min-height: 52px;
   font-size: 1.06rem;
 }
+.environment-play-stack {
+  display: grid;
+  gap: 8px;
+}
+.environment-play-stack .status {
+  justify-self: stretch;
+  width: 100%;
+}
 .check-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

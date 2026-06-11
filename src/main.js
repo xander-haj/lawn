@@ -93,6 +93,7 @@ const elements = {
   extractButton: document.querySelector("#extractButton"),
   extractVisualStudioButton: document.querySelector("#extractVisualStudioButton"),
   extractTccButton: document.querySelector("#extractTccButton"),
+  environmentPlayButton: document.querySelector("#environmentPlayButton"),
   clearLogButton: document.querySelector("#clearLogButton"),
 };
 
@@ -408,6 +409,16 @@ elements.extractTccButton.addEventListener("click", async () => {
       "tcc",
     ]);
   }
+});
+elements.environmentPlayButton.addEventListener("click", async () => {
+  const candidate = state.candidates.find((entry) => entry.path === state.selectedPath);
+
+  if (!candidate?.executable_path || candidate.status !== "ready") {
+    log("Build the selected project before pressing Play.");
+    return;
+  }
+
+  await launchProject(candidate);
 });
 
 showView(state.activeView);

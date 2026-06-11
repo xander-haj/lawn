@@ -56,6 +56,10 @@
                   Build assets Visual Studio
                 </button>
                 <button id="extractTccButton" class="route-button hidden" type="button">Build assets TCC</button>
+                <div class="environment-play-stack">
+                  <button id="environmentPlayButton" class="route-button" type="button" disabled>Play</button>
+                  <span id="environmentPlayableBadge" class="status ready hidden">Game playable</span>
+                </div>
               </div>
             </section>
 
@@ -65,7 +69,6 @@
                   <h2>Environment</h2>
                   <p>Checks are read-only unless you press an action button.</p>
                 </div>
-                <span id="environmentPlayableBadge" class="status ready hidden">Game playable</span>
                 <button id="checkButton" class="secondary-button" type="button">Run Checks</button>
               </div>
               <div id="checkList" class="check-list"></div>
@@ -258,12 +261,14 @@
               <span>Clone destination</span>
               <select id="clonePathSelect"></select>
             </label>
-            <button id="cloneZ3RModalButton" class="primary-button" type="button">Clone Z3R</button>
+            <div class="clone-submit-row">
+              <button id="cloneZ3RModalButton" class="primary-button" type="button">Clone Z3R</button>
+              <label class="repo-checkbox-row">
+                <input id="cloneBetaCheckbox" type="checkbox" />
+                <span>Beta</span>
+              </label>
+            </div>
           </div>
-          <label class="repo-checkbox-row">
-            <input id="cloneBetaCheckbox" type="checkbox" />
-            <span>Beta</span>
-          </label>
           <div class="clone-custom-row">
             <label class="scan-path-field">
               <span>GitHub URL</span>

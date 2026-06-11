@@ -120,5 +120,6 @@ function renderPlayableBadge(helpers) {
   const candidate = state.candidates.find((entry) => entry.path === state.selectedPath);
   const playable = candidate?.status === "ready" && Boolean(candidate?.executable_path);
 
+  elements.environmentPlayButton.disabled = !playable;
   elements.environmentPlayableBadge.classList.toggle("hidden", !playable);
 }
