@@ -193,6 +193,6 @@ When a newer release exists, the launcher downloads and starts the matching pack
   and TCC toolkit.
 - macOS uses the universal DMG and replaces the running `.app` bundle after the launcher closes.
 - AppImage releases replace the running AppImage file and relaunch it.
-- Flatpak releases download the `.flatpak` bundle and run the host Flatpak reinstall command for the current user.
+- Flatpak releases download the `.flatpak` bundle and run the host Flatpak install-or-update command.
 
 The updater does not execute remote scripts. It downloads release packages and runs fixed platform installer commands.

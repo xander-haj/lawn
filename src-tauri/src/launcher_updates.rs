@@ -21,12 +21,13 @@ const WINDOWS_SETUP_ASSET: &str = "Z3R-Launcher-windows-x64-setup.exe";
 const MACOS_DMG_ASSET: &str = "Z3R-Launcher-macos-universal.dmg";
 const LINUX_APPIMAGE_ASSET: &str = "Z3R-Launcher-linux-x64.AppImage";
 const FLATPAK_BUNDLE_ASSET: &str = "Z3R-Launcher-linux.flatpak";
+const FLATPAK_INFO_PATH: &str = "/.flatpak-info";
 
 // Checks the latest release, downloads the right package for the current install type,
 // starts the updater/installer, and exits the launcher when replacement requires it.
 #[tauri::command]
 pub fn install_launcher_update(app: tauri::AppHandle) -> Result<ActionResult, String> {
-    let current_version = env!("CARGO_PKG_VERSION");
+    let current_version = current_update_version();
     let update_dir = update_work_dir();
     fs::create_dir_all(&update_dir).map_err(|error| {
         format!(
@@ -166,7 +167,8 @@ fn install_macos_update(
 }
 
 // Flatpak updates download the release bundle and ask the host Flatpak installation
-// to reinstall it for the current user, avoiding package-manager writes in the sandbox.
+// to install-or-update it. This avoids the uninstall-first behavior that can fail
+// with "Directory not empty" while the current Flatpak is still running.
 fn install_flatpak_update(
     app: &tauri::AppHandle,
     release: &GithubRelease,
@@ -174,14 +176,16 @@ fn install_flatpak_update(
 ) -> Result<ActionResult, String> {
     let asset = exact_asset(release, FLATPAK_BUNDLE_ASSET)?;
     let bundle = download_release_asset(&asset, update_dir)?;
+    let scope_arg = flatpak_install_scope_arg();
     let mut command = platform_command("flatpak-spawn");
     command.args([
         "--host",
         "flatpak",
         "install",
-        "--user",
-        "--reinstall",
+        scope_arg,
+        "--or-update",
         "--assumeyes",
+        "--noninteractive",
         &display_path(&bundle),
     ]);
     let output = checked_output(command, "Flatpak launcher install")?;
@@ -197,6 +201,38 @@ fn install_flatpak_update(
         &output.0,
         &output.1,
     ))
+}
+
+// Uses the CI-stamped release tag when available, falling back to Cargo's version
+// for local builds and older packages that predate release metadata stamping.
+fn current_update_version() -> &'static str {
+    option_env!("LAUNCHER_RELEASE_TAG")
+        .filter(|tag| !tag.trim().is_empty())
+        .unwrap_or(env!("CARGO_PKG_VERSION"))
+}
+
+// Matches the host Flatpak install scope to the running package whenever /.flatpak-info
+// exposes an app path. Steam Deck/user installs stay --user; system installs use --system.
+fn flatpak_install_scope_arg() -> &'static str {
+    let Ok(flatpak_info) = fs::read_to_string(FLATPAK_INFO_PATH) else {
+        return "--user";
+    };
+
+    for line in flatpak_info.lines() {
+        let Some(app_path) = line.strip_prefix("app-path=") else {
+            continue;
+        };
+
+        if app_path.contains("/.local/share/flatpak/") {
+            return "--user";
+        }
+
+        if app_path.contains("/var/lib/flatpak/") {
+            return "--system";
+        }
+    }
+
+    "--user"
 }
 
 // AppImage updates replace the running AppImage file after the current process exits
