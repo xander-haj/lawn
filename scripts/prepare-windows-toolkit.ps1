@@ -6,7 +6,9 @@ param(
   [string]$GitUrl = "",
   [string]$PythonUrl = "https://www.nuget.org/api/v2/package/python/3.12.7",
   [string]$Sdl2Url = "https://github.com/libsdl-org/SDL/releases/download/release-2.30.11/SDL2-devel-2.30.11-VC.zip",
-  [string]$TccUrl = "https://download.savannah.gnu.org/releases/tinycc/tcc-0.9.27-win64-bin.zip"
+  [string]$TccUrl = "https://download.savannah.gnu.org/releases/tinycc/tcc-0.9.27-win64-bin.zip",
+  [int]$DownloadTimeoutSeconds = 600,
+  [int]$DownloadRetries = 4
 )
 
 $ErrorActionPreference = "Stop"
@@ -30,7 +32,8 @@ if (Test-Path $toolRoot) {
 
 New-Item -ItemType Directory -Force -Path $downloadRoot | Out-Null
 
-# Downloads one pinned package and fails loudly if the source is unavailable.
+# Downloads one pinned package with bounded retries so CI cannot hang until the
+# whole GitHub Actions job is canceled.
 function Save-ToolArchive {
   param(
     [string]$Url,
@@ -38,7 +41,49 @@ function Save-ToolArchive {
   )
 
   $target = Join-Path $downloadRoot $FileName
-  Invoke-WebRequest -Uri $Url -OutFile $target
+  $partial = "$target.download"
+  $curl = Get-Command curl.exe -ErrorAction SilentlyContinue
+
+  if ($null -eq $curl) {
+    throw "curl.exe was not found on the Windows runner."
+  }
+
+  if (Test-Path $partial) {
+    Remove-Item $partial -Force
+  }
+
+  Write-Host "Downloading $FileName"
+
+  & $curl.Source `
+    --fail `
+    --location `
+    --show-error `
+    --silent `
+    --connect-timeout 30 `
+    --max-time $DownloadTimeoutSeconds `
+    --retry $DownloadRetries `
+    --retry-delay 5 `
+    --retry-max-time $DownloadTimeoutSeconds `
+    --speed-limit 1024 `
+    --speed-time 60 `
+    --output $partial `
+    $Url
+
+  if ($LASTEXITCODE -ne 0) {
+    throw "Failed to download $FileName from $Url. curl.exe exited with code $LASTEXITCODE."
+  }
+
+  if (!(Test-Path $partial)) {
+    throw "Download did not create $FileName."
+  }
+
+  $download = Get-Item $partial
+
+  if ($download.Length -le 0) {
+    throw "Downloaded $FileName is empty."
+  }
+
+  Move-Item -Path $partial -Destination $target -Force
   return $target
 }
 
@@ -67,7 +112,11 @@ function Expand-SevenZipArchive {
     throw "7-Zip was not found at $sevenZip."
   }
 
-  & $sevenZip x $Archive "-o$Destination" -y | Out-Host
+  & $sevenZip x $Archive "-o$Destination" -y
+
+  if ($LASTEXITCODE -ne 0) {
+    throw "7-Zip failed to extract $Archive. Exit code: $LASTEXITCODE."
+  }
 }
 
 # Copies archive contents whether the vendor zip contains files at the root or wraps
@@ -78,7 +127,7 @@ function Copy-NormalizedContents {
     [string]$Destination
   )
 
-  $children = Get-ChildItem -Path $Source
+  $children = @(Get-ChildItem -Path $Source)
   $contentRoot = $Source
 
   if ($children.Count -eq 1 -and $children[0].PSIsContainer) {
