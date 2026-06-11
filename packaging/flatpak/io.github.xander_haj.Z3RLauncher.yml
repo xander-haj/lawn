@@ -1,5 +1,9 @@
 id: io.github.xander_haj.Z3RLauncher
-runtime: org.gnome.Platform
+# The launcher creates venvs, installs Python requirements, clones with Git, and
+# builds the selected Z3R project with make. Use the SDK as the shipped runtime so
+# Steam Deck users get those tools inside the Flatpak sandbox instead of depending
+# on the immutable host OS.
+runtime: org.gnome.Sdk
 runtime-version: '48'
 sdk: org.gnome.Sdk
 sdk-extensions:
@@ -10,15 +14,14 @@ finish-args:
   - --share=ipc
   - --socket=wayland
   - --socket=fallback-x11
+  - --socket=pulseaudio
   - --device=dri
+  - --device=input
   - --share=network
   - --filesystem=home
-  - --talk-name=org.freedesktop.Flatpak
-
-cleanup:
-  - /include
-  - /lib/pkgconfig
-  - '*.a'
+  - --filesystem=/run/media
+  - --env=PATH=/app/bin:/usr/bin:/bin
+  - --env=PKG_CONFIG_PATH=/app/lib/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig
 
 build-options:
   append-path: /usr/lib/sdk/rust-stable/bin

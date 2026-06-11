@@ -3,6 +3,7 @@
 use std::path::{Path, PathBuf};
 
 pub const Z3R_REPO_URL: &str = "https://github.com/xander-haj/Z3R";
+pub const Z3R_BETA_REPO_URL: &str = "https://github.com/xander-haj/Z3R-Beta";
 
 // Converts filesystem paths into display-safe strings for the JavaScript frontend.
 pub fn display_path(path: &Path) -> String {

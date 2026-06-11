@@ -32,8 +32,14 @@ async function runEnvironmentChecks(helpers) {
     scanRoot: null,
   });
   state.environmentOs = report.os;
+  state.environmentChecks = report.checks;
   renderChecks(report.checks, helpers);
-  updateEnvironmentActions(elements, report.checks);
+  updateEnvironmentActions(elements, report.checks, {
+    actionRunning: state.environmentActionRunning,
+    hasSelectedProject: Boolean(state.selectedPath),
+    failedSetupStep: state.failedSetupStep,
+  });
+  renderPlayableBadge(helpers);
   renderSteps(helpers);
 }
 
@@ -107,4 +113,12 @@ function renderSteps(helpers) {
     item.textContent = step.replace("{projectPath}", state.selectedPath ?? "");
     elements.stepList.append(item);
   }
+}
+
+function renderPlayableBadge(helpers) {
+  const { state, elements } = helpers;
+  const candidate = state.candidates.find((entry) => entry.path === state.selectedPath);
+  const playable = candidate?.status === "ready" && Boolean(candidate?.executable_path);
+
+  elements.environmentPlayableBadge.classList.toggle("hidden", !playable);
 }

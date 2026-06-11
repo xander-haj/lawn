@@ -9,10 +9,6 @@ use std::process::Command;
 // Builds a Command with platform-specific PATH fixes applied. The program parameter is the
 // executable name or path to run, and the returned Command is ready for args/current_dir.
 pub(crate) fn platform_command(program: &str) -> Command {
-    if is_flatpak_runtime() {
-        return flatpak_host_command(program, None);
-    }
-
     let mut command = Command::new(resolve_program(program));
 
     if cfg!(target_os = "macos") {
@@ -22,43 +18,10 @@ pub(crate) fn platform_command(program: &str) -> Command {
     command
 }
 
-// Builds a Command that runs from a specific working directory. Flatpak host spawning needs the
-// directory passed as a flatpak-spawn option, while native launches use Command::current_dir.
+// Builds a Command that runs from a specific working directory.
 pub(crate) fn platform_command_in_dir(program: &str, directory: &Path) -> Command {
-    if is_flatpak_runtime() {
-        return flatpak_host_command(program, Some(directory));
-    }
-
     let mut command = platform_command(program);
     command.current_dir(directory);
-    command
-}
-
-// Detects Linux Flatpak packaging so launcher-managed tools run on the host toolchain.
-#[cfg(target_os = "linux")]
-fn is_flatpak_runtime() -> bool {
-    Path::new("/.flatpak-info").is_file()
-}
-
-// Non-Linux packages should keep their native command behavior.
-#[cfg(not(target_os = "linux"))]
-fn is_flatpak_runtime() -> bool {
-    false
-}
-
-// Creates a flatpak-spawn command that preserves the requested host program and cwd.
-fn flatpak_host_command(program: &str, directory: Option<&Path>) -> Command {
-    let mut command = Command::new("flatpak-spawn");
-
-    command.arg("--host");
-
-    if let Some(directory) = directory {
-        let mut directory_arg = OsString::from("--directory=");
-        directory_arg.push(directory.as_os_str());
-        command.arg(directory_arg);
-    }
-
-    command.arg(program);
     command
 }
 

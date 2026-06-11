@@ -28,6 +28,7 @@ pub struct ProjectCandidate {
     pub path: String,
     pub asset_path: Option<String>,
     pub executable_path: Option<String>,
+    pub git_repo: bool,
     pub snesrev_makefile_patch_applied: bool,
     pub snesrev_solution_patch_applied: bool,
     pub source_patch_needed: Option<String>,
@@ -57,6 +58,35 @@ pub struct ActionResult {
     pub message: String,
     pub stdout: String,
     pub stderr: String,
+}
+
+#[derive(Serialize)]
+pub struct AppRuntimeInfo {
+    pub os: String,
+    pub default_scan_root: String,
+    pub flatpak: bool,
+    pub packaged_macos: bool,
+    pub default_clone_requires_scan_path: bool,
+    pub default_clone_warning: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct RepoUpdatePreview {
+    pub project_path: String,
+    pub upstream: Option<String>,
+    pub behind_count: usize,
+    pub changes: Vec<RepoChange>,
+    pub warnings: Vec<String>,
+    pub dirty_files: Vec<String>,
+    pub can_apply: bool,
+}
+
+#[derive(Clone, Serialize)]
+pub struct RepoChange {
+    pub path: String,
+    pub old_path: Option<String>,
+    pub status: String,
+    pub label: String,
 }
 
 #[derive(Serialize)]

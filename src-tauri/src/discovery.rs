@@ -139,6 +139,7 @@ fn inspect_candidate(path: &Path, owner: Option<String>) -> Option<ProjectCandid
     let has_makefile = path.join("Makefile").exists();
     let has_solution = path.join("Zelda3.sln").exists();
     let has_source = has_makefile || has_solution || path.join("run_with_tcc.bat").exists();
+    let git_repo = path.join(".git").exists();
 
     if asset_path.is_none() && executable_path.is_none() && !has_source {
         return None;
@@ -185,6 +186,7 @@ fn inspect_candidate(path: &Path, owner: Option<String>) -> Option<ProjectCandid
         path: display_path(path),
         asset_path: asset_path.as_deref().map(display_path),
         executable_path: executable_path.as_deref().map(display_path),
+        git_repo,
         snesrev_makefile_patch_applied,
         snesrev_solution_patch_applied,
         source_patch_needed,

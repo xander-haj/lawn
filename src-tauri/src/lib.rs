@@ -18,7 +18,9 @@ mod makefile_patches;
 mod models;
 mod paths;
 mod randomizer;
+mod repo_updates;
 mod rom_storage;
+mod runtime_info;
 
 #[cfg(target_os = "linux")]
 const LINUX_GDK_BACKEND: &str = "x11,wayland";
@@ -78,11 +80,13 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             discovery::scan_siblings,
+            runtime_info::app_runtime_info,
             env_checks::check_environment,
             actions::launch_game,
             actions::choose_scan_root,
             actions::clone_project,
             actions::clone_custom_project,
+            actions::open_project_folder,
             actions::create_venv,
             actions::install_dependencies,
             asset_builds::extract_assets,
@@ -106,6 +110,8 @@ pub fn run() {
             randomizer::run_randomizer,
             randomizer::restore_vanilla_randomizer_yaml,
             randomizer::compile_randomized_assets,
+            repo_updates::preview_repo_update,
+            repo_updates::apply_repo_update,
             ini_config::read_zelda_ini,
             ini_config::update_zelda_ini_line
         ])

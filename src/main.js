@@ -7,6 +7,8 @@ import { connectProjectCards } from "./project-cards.js";
 import { connectEnvironmentScreen } from "./environment-screen.js";
 import { connectControlsScreen } from "./controls-screen.js";
 import { connectFeaturesScreen } from "./features-screen.js";
+import { checksReady, updateEnvironmentActions } from "./environment-actions.js";
+import { connectRepoUpdateManager } from "./repo-update-manager.js";
 import {
   connectScanPathManager,
   loadStoredClonePath,
@@ -27,6 +29,12 @@ const state = {
   environmentOs: "macos",
   setupGuidance: null,
   manualInstallGuides: null,
+  runtimeInfo: null,
+  environmentChecks: [],
+  environmentActionRunning: false,
+  failedSetupStep: null,
+  repoUpdateProject: null,
+  repoUpdatePreview: null,
 };
 
 // DOM references collected once at boot so screen modules don't repeat querySelector
@@ -58,9 +66,23 @@ const elements = {
   scanPathsTabPanel: document.querySelector("#scanPathsTabPanel"),
   cloneTabPanel: document.querySelector("#cloneTabPanel"),
   clonePathSelect: document.querySelector("#clonePathSelect"),
+  clonePathNotice: document.querySelector("#clonePathNotice"),
+  cloneBetaCheckbox: document.querySelector("#cloneBetaCheckbox"),
   cloneZ3RModalButton: document.querySelector("#cloneZ3RModalButton"),
   cloneCustomUrl: document.querySelector("#cloneCustomUrl"),
   cloneCustomModalButton: document.querySelector("#cloneCustomModalButton"),
+  environmentPlayableBadge: document.querySelector("#environmentPlayableBadge"),
+  repoUpdateDialog: document.querySelector("#repoUpdateDialog"),
+  repoUpdateForm: document.querySelector("#repoUpdateForm"),
+  repoUpdateTitle: document.querySelector("#repoUpdateTitle"),
+  repoUpdatePath: document.querySelector("#repoUpdatePath"),
+  repoUpdateWarnings: document.querySelector("#repoUpdateWarnings"),
+  repoUpdateSummary: document.querySelector("#repoUpdateSummary"),
+  repoUpdateFileList: document.querySelector("#repoUpdateFileList"),
+  repoUpdateOpenFolderButton: document.querySelector("#repoUpdateOpenFolderButton"),
+  repoUpdateRefreshButton: document.querySelector("#repoUpdateRefreshButton"),
+  repoUpdateApplyButton: document.querySelector("#repoUpdateApplyButton"),
+  repoUpdateCloseButton: document.querySelector("#repoUpdateCloseButton"),
   backButton: document.querySelector("#backButton"),
   checkButton: document.querySelector("#checkButton"),
   guideBackButton: document.querySelector("#guideBackButton"),
@@ -121,6 +143,10 @@ function showView(view) {
 // Stores the selected project path and refreshes both the card grid (selected style)
 // and the environment screen (which reacts to the new project's local files).
 async function selectProject(projectPath) {
+  if (state.selectedPath !== projectPath) {
+    state.failedSetupStep = null;
+  }
+
   state.selectedPath = projectPath;
   projectCards.render();
   await environmentScreen.runChecks();
@@ -140,7 +166,8 @@ async function launchProject(candidate) {
 }
 
 // Runs a setup action and then refreshes scan + environment so the UI catches up.
-async function runAction(command, payload = {}) {
+async function runAction(command, payload = {}, options = {}) {
+  const refreshOnFailure = options.refreshOnFailure ?? true;
   const result = await call(command, payload);
   log(result.message);
 
@@ -152,7 +179,55 @@ async function runAction(command, payload = {}) {
     log(result.stderr.trim());
   }
 
-  await refreshScan();
+  if (result.ok || refreshOnFailure) {
+    await refreshScan();
+  } else {
+    await environmentScreen.runChecks();
+  }
+
+  return result;
+}
+
+async function runSetupAction(command, payload, requiredCheckIds) {
+  if (!payload) {
+    return;
+  }
+
+  await environmentScreen.runChecks();
+
+  if (!checksReady(state.environmentChecks, requiredCheckIds)) {
+    log("This setup step is blocked until the required checks are OK.");
+    return;
+  }
+
+  state.environmentActionRunning = true;
+  updateEnvironmentActions(elements, state.environmentChecks, {
+    actionRunning: true,
+    hasSelectedProject: Boolean(state.selectedPath),
+    failedSetupStep: state.failedSetupStep,
+  });
+
+  try {
+    const result = await runAction(command, payload, { refreshOnFailure: false });
+
+    if (!result.ok) {
+      state.failedSetupStep = command;
+      log("Fix the failed setup step before continuing.");
+    } else {
+      state.failedSetupStep = null;
+    }
+  } catch (error) {
+    state.failedSetupStep = command;
+    log("Fix the failed setup step before continuing.");
+    await environmentScreen.runChecks();
+  } finally {
+    state.environmentActionRunning = false;
+    updateEnvironmentActions(elements, state.environmentChecks, {
+      actionRunning: false,
+      hasSelectedProject: Boolean(state.selectedPath),
+      failedSetupStep: state.failedSetupStep,
+    });
+  }
 }
 
 // Guard used by setup buttons that require a selected project — logs a hint and
@@ -186,6 +261,7 @@ async function refreshScan() {
 
   if (!state.candidates.some((candidate) => candidate.path === state.selectedPath)) {
     state.selectedPath = state.candidates[0]?.path ?? null;
+    state.failedSetupStep = null;
   }
 
   projectCards.render();
@@ -218,6 +294,10 @@ async function loadGuideContent() {
   state.manualInstallGuides = await loadManualInstallGuides();
 }
 
+async function loadRuntimeInfo() {
+  state.runtimeInfo = await call("app_runtime_info");
+}
+
 // One helpers bag shared with every screen module so they all see the same state +
 // shared callbacks without reaching for module-level globals of their own.
 const helpers = {
@@ -240,6 +320,8 @@ const projectCards = connectProjectCards(helpers);
 const environmentScreen = connectEnvironmentScreen(helpers);
 const controlsScreen = connectControlsScreen(helpers);
 const featuresScreen = connectFeaturesScreen(helpers);
+const repoUpdateManager = connectRepoUpdateManager(helpers);
+helpers.openRepoUpdate = repoUpdateManager.open;
 connectScanPathManager(helpers);
 
 elements.refreshButton.addEventListener("click", refreshScan);
@@ -282,39 +364,52 @@ connectRandomizerSetup({
 elements.clearLogButton.addEventListener("click", () => {
   elements.logOutput.textContent = "Ready.";
 });
-elements.venvButton.addEventListener("click", () => {
+elements.venvButton.addEventListener("click", async () => {
   const payload = selectedProjectPayload();
   if (payload) {
-    runAction("create_venv", payload);
+    await runSetupAction("create_venv", payload, ["python"]);
   }
 });
-elements.dependenciesButton.addEventListener("click", () => {
+elements.dependenciesButton.addEventListener("click", async () => {
   const payload = selectedProjectPayload();
   if (payload) {
-    runAction("install_dependencies", payload);
+    await runSetupAction("install_dependencies", payload, ["python", "venv"]);
   }
 });
-elements.extractButton.addEventListener("click", () => {
+elements.extractButton.addEventListener("click", async () => {
   const payload = selectedProjectPayload();
   if (payload) {
-    runAction("extract_assets", payload);
+    await runSetupAction("extract_assets", payload, ["python", "venv", "python-dependencies", "rom"]);
   }
 });
-elements.extractVisualStudioButton.addEventListener("click", () => {
+elements.extractVisualStudioButton.addEventListener("click", async () => {
   const payload = selectedProjectPayload();
   if (payload) {
-    runAction("extract_assets_visual_studio", payload);
+    await runSetupAction("extract_assets_visual_studio", payload, [
+      "python",
+      "venv",
+      "python-dependencies",
+      "rom",
+      "msbuild",
+    ]);
   }
 });
-elements.extractTccButton.addEventListener("click", () => {
+elements.extractTccButton.addEventListener("click", async () => {
   const payload = selectedProjectPayload();
   if (payload) {
-    runAction("extract_assets_tcc", payload);
+    await runSetupAction("extract_assets_tcc", payload, [
+      "python",
+      "venv",
+      "python-dependencies",
+      "rom",
+      "tcc",
+    ]);
   }
 });
 
 showView(state.activeView);
 await loadSetupGuidance();
 await loadGuideContent();
+await loadRuntimeInfo();
 await refreshRomStatus();
 refreshScan();

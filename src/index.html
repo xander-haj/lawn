@@ -64,6 +64,7 @@
                   <h2>Environment</h2>
                   <p>Checks are read-only unless you press an action button.</p>
                 </div>
+                <span id="environmentPlayableBadge" class="status ready hidden">Game playable</span>
                 <button id="checkButton" class="secondary-button" type="button">Run Checks</button>
               </div>
               <div id="checkList" class="check-list"></div>
@@ -250,6 +251,7 @@
           <div id="scanPathList" class="scan-path-list" aria-label="Added scan paths"></div>
         </div>
         <div id="cloneTabPanel" class="repo-tab-panel">
+          <p id="clonePathNotice" class="repo-warning hidden"></p>
           <div class="clone-path-row">
             <label class="scan-path-field">
               <span>Clone destination</span>
@@ -257,6 +259,10 @@
             </label>
             <button id="cloneZ3RModalButton" class="primary-button" type="button">Clone Z3R</button>
           </div>
+          <label class="repo-checkbox-row">
+            <input id="cloneBetaCheckbox" type="checkbox" />
+            <span>Beta</span>
+          </label>
           <div class="clone-custom-row">
             <label class="scan-path-field">
               <span>GitHub URL</span>
@@ -272,6 +278,25 @@
         </div>
         <div class="scan-path-actions">
           <button id="scanPathCloseButton" class="secondary-button" type="button">Close</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="repoUpdateDialog" class="scan-path-dialog repo-update-dialog" aria-labelledby="repoUpdateTitle">
+      <form id="repoUpdateForm" method="dialog">
+        <div class="scan-path-copy">
+          <p class="eyebrow">Repository</p>
+          <h2 id="repoUpdateTitle">Update Repo</h2>
+          <p id="repoUpdatePath" class="path-line"></p>
+        </div>
+        <div id="repoUpdateWarnings" class="repo-warning-list"></div>
+        <div id="repoUpdateSummary" class="path-line"></div>
+        <div id="repoUpdateFileList" class="repo-update-file-list" aria-label="Repo update files"></div>
+        <div class="scan-path-actions repo-update-actions">
+          <button id="repoUpdateOpenFolderButton" class="secondary-button" type="button">Open Folder</button>
+          <button id="repoUpdateRefreshButton" class="secondary-button" type="button">Refresh</button>
+          <button id="repoUpdateApplyButton" class="primary-button" type="button">Apply Selected</button>
+          <button id="repoUpdateCloseButton" class="secondary-button" type="button">Close</button>
         </div>
       </form>
     </dialog>

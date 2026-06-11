@@ -3,7 +3,10 @@
 // Enables each setup button only after the dependency gates before it are satisfied.
 // elements contains the Environment screen action buttons, and checks are backend check rows.
 // Returns nothing after updating disabled states in place.
-export function updateEnvironmentActions(elements, checks) {
+export function updateEnvironmentActions(elements, checks, options = {}) {
+  const actionRunning = options.actionRunning ?? false;
+  const hasSelectedProject = options.hasSelectedProject ?? true;
+  const failedSetupStep = options.failedSetupStep ?? null;
   const pythonReady = checkReady(checks, "python");
   const venvReady = checkReady(checks, "venv");
   const dependenciesReady = checkReady(checks, "python-dependencies");
@@ -13,20 +16,31 @@ export function updateEnvironmentActions(elements, checks) {
   const msbuildReady = checkReady(checks, "msbuild");
   const tccReady = checkReady(checks, "tcc");
   const baseBuildReady = pythonReady && venvReady && dependenciesReady && romReady;
+  const venvFailureBlocksDownstream = failedSetupStep === "create_venv";
+  const dependencyFailureBlocksBuild = failedSetupStep === "install_dependencies";
+  const setupBlocked = actionRunning || !hasSelectedProject;
 
-  elements.venvButton.disabled = !pythonReady;
-  elements.dependenciesButton.disabled = !pythonReady || !venvReady;
+  elements.venvButton.disabled = setupBlocked || !pythonReady;
+  elements.dependenciesButton.disabled =
+    setupBlocked || venvFailureBlocksDownstream || !pythonReady || !venvReady;
   elements.extractButton.classList.toggle("hidden", windowsReady);
-  elements.extractButton.disabled = !baseBuildReady;
+  elements.extractButton.disabled =
+    setupBlocked || venvFailureBlocksDownstream || dependencyFailureBlocksBuild || !baseBuildReady;
   elements.extractVisualStudioButton.classList.toggle("hidden", !windowsReady || !msbuildReady);
-  elements.extractVisualStudioButton.disabled = !baseBuildReady || !msbuildReady;
+  elements.extractVisualStudioButton.disabled =
+    setupBlocked || venvFailureBlocksDownstream || dependencyFailureBlocksBuild || !baseBuildReady || !msbuildReady;
   elements.extractTccButton.classList.toggle("hidden", !windowsReady);
-  elements.extractTccButton.disabled = !baseBuildReady || !tccReady;
+  elements.extractTccButton.disabled =
+    setupBlocked || venvFailureBlocksDownstream || dependencyFailureBlocksBuild || !baseBuildReady || !tccReady;
 }
 
 // Looks up one environment check by stable id and treats only the explicit ok state as ready.
 // checks is the backend report list, and id is the required dependency id.
 // Returns true when the matching check exists and reports ok.
-function checkReady(checks, id) {
+export function checkReady(checks, id) {
   return checks.some((check) => check.id === id && check.state === "ok");
+}
+
+export function checksReady(checks, ids) {
+  return ids.every((id) => checkReady(checks, id));
 }

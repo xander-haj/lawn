@@ -38,6 +38,7 @@ export function connectScanPathManager(helpers) {
     await addScanPath(elements.scanPathInput.value, helpers);
   });
   elements.clonePathSelect.addEventListener("change", () => saveClonePathFromSelect(helpers));
+  elements.cloneBetaCheckbox.addEventListener("change", () => updateCloneButtonState(helpers));
   elements.cloneZ3RModalButton.addEventListener("click", async () => {
     await runClone("clone_project", helpers);
   });
@@ -58,6 +59,7 @@ function openScanPathManager(helpers) {
   const { elements } = helpers;
   elements.scanPathInput.value = "";
   elements.cloneCustomUrl.value = "";
+  elements.cloneBetaCheckbox.checked = false;
   showRepoTab("scan", helpers);
   renderScanPathManager(helpers);
   renderClonePathOptions(helpers);
@@ -87,7 +89,9 @@ function renderScanPathManager(helpers) {
   if (state.scanPaths.length === 0) {
     const empty = document.createElement("p");
     empty.className = "path-line";
-    empty.textContent = "Default launcher folder is already scanned. Add more folders here.";
+    empty.textContent = state.runtimeInfo?.default_clone_requires_scan_path
+      ? "Add a repo path here before cloning from this packaged launcher."
+      : "Default launcher folder is already scanned. Add more folders here.";
     elements.scanPathList.append(empty);
     return;
   }
@@ -125,6 +129,7 @@ function buildScanPathRow(path, index, helpers) {
     state.scanPaths.splice(index, 1);
     saveScanPaths(state);
     renderScanPathManager(helpers);
+    renderClonePathOptions(helpers);
     await refreshScan();
   });
 
@@ -176,21 +181,38 @@ function saveScanPaths(state) {
 // Populates clone destinations from the current scan roots: default plus added paths.
 function renderClonePathOptions(helpers) {
   const { elements, state } = helpers;
-  const options = [{ label: "Default", value: "" }, ...state.scanPaths.map(pathToOption)];
+  const requiresManualPath = state.runtimeInfo?.default_clone_requires_scan_path ?? false;
+  const options = [{ label: "Default", value: "", disabled: requiresManualPath }, ...state.scanPaths.map(pathToOption)];
+  const validCloneValues = new Set(options.filter((option) => !option.disabled).map((option) => option.value));
   elements.clonePathSelect.textContent = "";
+
+  if (!validCloneValues.has(state.clonePath ?? "")) {
+    state.clonePath = null;
+    localStorage.removeItem(CLONE_PATH_STORAGE_KEY);
+  }
 
   for (const option of options) {
     const element = document.createElement("option");
     element.value = option.value;
     element.textContent = option.label;
+    element.disabled = Boolean(option.disabled);
     elements.clonePathSelect.append(element);
   }
 
   elements.clonePathSelect.value = state.clonePath ?? "";
 
+  if (requiresManualPath && !state.clonePath && state.scanPaths.length > 0) {
+    state.clonePath = state.scanPaths[0];
+    localStorage.setItem(CLONE_PATH_STORAGE_KEY, state.clonePath);
+    elements.clonePathSelect.value = state.clonePath;
+  }
+
   if (elements.clonePathSelect.value !== (state.clonePath ?? "")) {
     elements.clonePathSelect.value = "";
   }
+
+  renderClonePathNotice(helpers);
+  updateCloneButtonState(helpers);
 }
 
 // Saves the clone path override; the Default option returns cloning to the default root.
@@ -206,20 +228,36 @@ function saveClonePathFromSelect(helpers) {
     localStorage.removeItem(CLONE_PATH_STORAGE_KEY);
     log("Clone path reset to the launcher default.");
   }
+
+  renderClonePathNotice(helpers);
+  updateCloneButtonState(helpers);
 }
 
 // Runs fixed or custom clone commands against the saved clone destination.
 async function runClone(command, helpers, extraPayload = {}) {
   const { elements, refreshScan, state } = helpers;
+  const requiresManualPath = state.runtimeInfo?.default_clone_requires_scan_path ?? false;
+
+  if (requiresManualPath && !state.clonePath) {
+    helpers.log(state.runtimeInfo?.default_clone_warning ?? "Add a repo scan path before cloning.");
+    return;
+  }
+
+  saveClonePathFromSelect(helpers);
   elements.cloneZ3RModalButton.disabled = true;
   elements.cloneCustomModalButton.disabled = true;
-  saveClonePathFromSelect(helpers);
 
   try {
-    const result = await helpers.call(command, {
+    const payload = {
       scanRoot: state.clonePath,
       ...extraPayload,
-    });
+    };
+
+    if (command === "clone_project") {
+      payload.beta = elements.cloneBetaCheckbox.checked;
+    }
+
+    const result = await helpers.call(command, payload);
     helpers.log(result.message);
 
     if (result.stdout) {
@@ -233,9 +271,30 @@ async function runClone(command, helpers, extraPayload = {}) {
     elements.cloneCustomUrl.value = "";
     await refreshScan();
   } finally {
-    elements.cloneZ3RModalButton.disabled = false;
-    elements.cloneCustomModalButton.disabled = false;
+    updateCloneButtonState(helpers);
   }
+}
+
+function renderClonePathNotice(helpers) {
+  const { elements, state } = helpers;
+  const warning = state.runtimeInfo?.default_clone_warning;
+  const requiresManualPath = state.runtimeInfo?.default_clone_requires_scan_path ?? false;
+
+  elements.clonePathNotice.classList.toggle("hidden", !requiresManualPath);
+  elements.clonePathNotice.textContent = requiresManualPath
+    ? warning ?? "Add a repo scan path before cloning from this packaged app."
+    : "";
+}
+
+function updateCloneButtonState(helpers) {
+  const { elements, state } = helpers;
+  const requiresManualPath = state.runtimeInfo?.default_clone_requires_scan_path ?? false;
+  const hasAllowedClonePath = !requiresManualPath || Boolean(state.clonePath);
+  const beta = elements.cloneBetaCheckbox.checked;
+
+  elements.cloneZ3RModalButton.textContent = beta ? "Clone Z3R Beta" : "Clone Z3R";
+  elements.cloneZ3RModalButton.disabled = !hasAllowedClonePath;
+  elements.cloneCustomModalButton.disabled = !hasAllowedClonePath;
 }
 
 // Extracts the final folder name for compact manager labels on every platform.
@@ -249,5 +308,6 @@ function pathToOption(path) {
   return {
     label: pathFolderName(path),
     value: path,
+    disabled: false,
   };
 }

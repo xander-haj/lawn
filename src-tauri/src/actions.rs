@@ -1,8 +1,11 @@
 // This module performs user-triggered actions with fixed commands and arguments.
 use crate::bundled_tools::{git_program, python_program};
-use crate::command_env::platform_command_in_dir;
+use crate::command_env::{platform_command, platform_command_in_dir};
 use crate::models::ActionResult;
-use crate::paths::{display_path, resolve_scan_root, venv_python, Z3R_REPO_URL};
+use crate::paths::{
+    display_path, resolve_scan_root, venv_python, Z3R_BETA_REPO_URL, Z3R_REPO_URL,
+};
+use crate::runtime_info::ensure_clone_scan_root;
 use crate::rom_storage::copy_stored_rom_to_project;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -91,9 +94,18 @@ pub async fn choose_scan_root(app: tauri::AppHandle) -> Result<Option<String>, S
 pub fn clone_project(
     app: tauri::AppHandle,
     scan_root: Option<String>,
+    beta: Option<bool>,
 ) -> Result<ActionResult, String> {
+    ensure_clone_scan_root(&scan_root)?;
     let parent = resolve_scan_root(scan_root)?;
-    let target = parent.join("Z3R");
+    let use_beta = beta.unwrap_or(false);
+    let repo_name = if use_beta { "Z3R-Beta" } else { "Z3R" };
+    let repo_url = if use_beta {
+        Z3R_BETA_REPO_URL
+    } else {
+        Z3R_REPO_URL
+    };
+    let target = parent.join(repo_name);
 
     if target.exists() {
         return Err(format!(
@@ -104,7 +116,7 @@ pub fn clone_project(
 
     let mut result = run_command(
         &git_program(&app),
-        &["clone", "--recursive", Z3R_REPO_URL, "Z3R"],
+        &["clone", "--recursive", repo_url, repo_name],
         &parent,
         "Clone complete.",
     )?;
@@ -123,6 +135,7 @@ pub fn clone_custom_project(
     repo_url: String,
     scan_root: Option<String>,
 ) -> Result<ActionResult, String> {
+    ensure_clone_scan_root(&scan_root)?;
     let parent = resolve_scan_root(scan_root)?;
     let normalized_url = normalize_github_url(&repo_url)?;
     let (owner, repo) = github_repo_owner_and_name(&normalized_url)?;
@@ -159,6 +172,44 @@ pub fn clone_custom_project(
 
     attach_rom_copy_message(&app, &target, &mut result)?;
     Ok(result)
+}
+
+// Opens a detected project folder in the platform file manager.
+#[tauri::command]
+pub fn open_project_folder(project_path: String) -> Result<ActionResult, String> {
+    let project = PathBuf::from(project_path);
+
+    if !project.is_dir() {
+        return Err(format!(
+            "Project folder does not exist: {}",
+            display_path(&project)
+        ));
+    }
+
+    let mut command = if cfg!(target_os = "windows") {
+        let mut command = platform_command("explorer");
+        command.arg(&project);
+        command
+    } else if cfg!(target_os = "macos") {
+        let mut command = platform_command("open");
+        command.arg(&project);
+        command
+    } else {
+        let mut command = platform_command("xdg-open");
+        command.arg(&project);
+        command
+    };
+
+    command
+        .spawn()
+        .map_err(|error| format!("Could not open project folder: {error}"))?;
+
+    Ok(ActionResult {
+        ok: true,
+        message: format!("Opened project folder: {}", display_path(&project)),
+        stdout: String::new(),
+        stderr: String::new(),
+    })
 }
 
 // Creates a project-local Python virtual environment without installing packages.

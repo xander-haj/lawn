@@ -94,6 +94,7 @@ function buildProjectCard(candidate, helpers) {
     nameSafe: escapeHtml(candidate.name),
     authorLine,
     patchButton: sourcePatchButtonMarkup(candidate),
+    repoButton: repoButtonMarkup(candidate),
   });
 
   wireCardButtons(card, candidate, helpers);
@@ -107,11 +108,20 @@ function buildProjectCard(candidate, helpers) {
 // Centralizes the card HTML so wireCardButtons can stay focused on event wiring. The
 // card now has FOUR grid rows: status/actions, title-block, card-config-actions
 // (aspect row + features/controls), and card-setup-actions (environment + randomizer).
-function buildCardMarkup({ statusClass, statusLabel, playDisabled, nameSafe, authorLine, patchButton }) {
+function buildCardMarkup({
+  statusClass,
+  statusLabel,
+  playDisabled,
+  nameSafe,
+  authorLine,
+  patchButton,
+  repoButton,
+}) {
   return `
     <span class="status ${statusClass}">${statusLabel}</span>
     <div class="card-top-actions">
       <button class="play-button" type="button" ${playDisabled ? "disabled" : ""}>Play</button>
+      ${repoButton}
       ${patchButton}
     </div>
     <div class="card-title-block">
@@ -135,7 +145,7 @@ function buildCardMarkup({ statusClass, statusLabel, playDisabled, nameSafe, aut
 // Attaches the per-button click handlers. The aspect ratio widget mounts later because
 // it lives inside the placeholder element and owns its own DOM structure.
 function wireCardButtons(card, candidate, helpers) {
-  const { call, log, refreshScan, selectProject, openEnvironment, showView, launchProject } = helpers;
+  const { call, log, refreshScan, selectProject, openEnvironment, openRepoUpdate, showView, launchProject } = helpers;
 
   card.querySelector(".environment-button").addEventListener("click", async (event) => {
     event.stopPropagation();
@@ -177,6 +187,14 @@ function wireCardButtons(card, candidate, helpers) {
       await refreshScan();
     });
   }
+
+  const repoButton = card.querySelector(".repo-update-button");
+  if (repoButton) {
+    repoButton.addEventListener("click", async (event) => {
+      event.stopPropagation();
+      await openRepoUpdate(candidate);
+    });
+  }
 }
 
 // Keeps platform-specific source patch markup in one place so normal cards remain unchanged.
@@ -189,5 +207,11 @@ function sourcePatchButtonMarkup(candidate) {
 
   return label
     ? `<button class="secondary-button source-patch-button" type="button">${label}</button>`
+    : "";
+}
+
+function repoButtonMarkup(candidate) {
+  return candidate.git_repo
+    ? `<button class="secondary-button repo-update-button" type="button">Open Repo</button>`
     : "";
 }
