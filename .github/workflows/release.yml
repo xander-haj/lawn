@@ -79,11 +79,6 @@ jobs:
             patchelf \
             wget
 
-      - name: Prepare bundled Windows toolkit
-        if: matrix.platform == 'windows-2022'
-        shell: pwsh
-        run: ./scripts/prepare-windows-toolkit.ps1
-
       - name: Verify bundled Windows toolkit
         if: matrix.platform == 'windows-2022'
         shell: pwsh
