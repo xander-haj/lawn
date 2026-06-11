@@ -81,6 +81,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             discovery::scan_siblings,
             runtime_info::app_runtime_info,
+            runtime_info::launcher_version,
             env_checks::check_environment,
             actions::launch_game,
             actions::choose_scan_root,

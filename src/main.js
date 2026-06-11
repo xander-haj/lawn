@@ -9,6 +9,7 @@ import { connectControlsScreen } from "./controls-screen.js";
 import { connectFeaturesScreen } from "./features-screen.js";
 import { checksReady, updateEnvironmentActions } from "./environment-actions.js";
 import { connectRepoUpdateManager } from "./repo-update-manager.js";
+import { connectLauncherUpdateChecker } from "./launcher-update-checker.js";
 import {
   connectScanPathManager,
   loadStoredClonePath,
@@ -52,6 +53,7 @@ const elements = {
   activityToggle: document.querySelector("#activityToggle"),
   activityPanel: document.querySelector("#activityPanel"),
   refreshButton: document.querySelector("#refreshButton"),
+  updateCheckButton: document.querySelector("#updateCheckButton"),
   scanPathButton: document.querySelector("#scanPathButton"),
   uploadRomButton: document.querySelector("#uploadRomButton"),
   scanPathDialog: document.querySelector("#scanPathDialog"),
@@ -323,6 +325,7 @@ const featuresScreen = connectFeaturesScreen(helpers);
 const repoUpdateManager = connectRepoUpdateManager(helpers);
 helpers.openRepoUpdate = repoUpdateManager.open;
 connectScanPathManager(helpers);
+connectLauncherUpdateChecker(helpers);
 
 elements.refreshButton.addEventListener("click", refreshScan);
 elements.backButton.addEventListener("click", () => showView("builds"));

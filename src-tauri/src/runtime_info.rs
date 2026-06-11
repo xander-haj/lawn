@@ -21,6 +21,11 @@ pub fn app_runtime_info() -> Result<AppRuntimeInfo, String> {
     })
 }
 
+#[tauri::command]
+pub fn launcher_version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
+}
+
 pub(crate) fn ensure_clone_scan_root(scan_root: &Option<String>) -> Result<(), String> {
     if scan_root.is_none() && default_clone_requires_scan_path() {
         return Err(default_clone_warning(true).unwrap_or_else(|| {
