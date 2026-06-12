@@ -16,4 +16,10 @@ for lib_dir in "${appdir}/usr/lib" "${appdir}/usr/lib/x86_64-linux-gnu"; do
   fi
 done
 
-exec "${appdir}/usr/bin/z3r-launcher" "$@"
+export PATH="${appdir}/usr/bin:${PATH:-}"
+
+# WebKitGTK helper paths are patched from /usr/... to ././... inside the AppImage,
+# so the process must start with $APPDIR/usr as its working directory.
+cd "${appdir}/usr"
+
+exec "./bin/z3r-launcher" "$@"

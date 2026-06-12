@@ -10,7 +10,6 @@ use crate::rom_storage::copy_stored_rom_to_project;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
-use tauri_plugin_dialog::DialogExt;
 
 // Launches the selected game executable with its own folder as the working directory.
 #[tauri::command]
@@ -62,31 +61,6 @@ fn launch_working_dir<'a>(executable: &'a Path, executable_dir: &'a Path) -> &'a
     } else {
         executable_dir
     }
-}
-
-// Opens a native folder picker so users can choose where scanning and cloning happen.
-#[tauri::command]
-pub async fn choose_scan_root(app: tauri::AppHandle) -> Result<Option<String>, String> {
-    let (sender, mut receiver) = tauri::async_runtime::channel(1);
-
-    app.dialog().file().pick_folder(move |folder| {
-        tauri::async_runtime::spawn(async move {
-            let _ = sender.send(folder).await;
-        });
-    });
-
-    let folder = receiver
-        .recv()
-        .await
-        .ok_or_else(|| "Folder picker closed before returning a result.".to_string())?
-        .map(|path| {
-            path.into_path()
-                .map_err(|error| format!("Could not read selected folder path: {error}"))
-                .map(|path| display_path(&path))
-        })
-        .transpose()?;
-
-    Ok(folder)
 }
 
 // Clones Xander's Z3R repository into the active scan root when the user requests it.

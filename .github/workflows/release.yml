@@ -142,6 +142,30 @@ jobs:
           install -Dm644 "${icon_file}" \
             "${appdir}/usr/share/icons/hicolor/128x128/apps/${app_id}.png"
 
+          webkit_helper_source="/usr/lib/x86_64-linux-gnu/webkit2gtk-4.1"
+          webkit_helper_dest="${appdir}/usr/lib/x86_64-linux-gnu/webkit2gtk-4.1"
+
+          if [ ! -d "${webkit_helper_source}" ]; then
+            echo "WebKitGTK helper directory not found: ${webkit_helper_source}"
+            exit 1
+          fi
+
+          rm -rf "${webkit_helper_dest}"
+          mkdir -p "$(dirname "${webkit_helper_dest}")"
+          cp -a "${webkit_helper_source}" "${webkit_helper_dest}"
+
+          for helper in WebKitNetworkProcess WebKitWebProcess WebKitGPUProcess; do
+            if [ ! -x "${webkit_helper_dest}/${helper}" ]; then
+              echo "Missing packaged WebKitGTK helper: ${webkit_helper_dest}/${helper}"
+              exit 1
+            fi
+          done
+
+          if [ ! -f "${webkit_helper_dest}/injected-bundle/libwebkit2gtkinjectedbundle.so" ]; then
+            echo "Missing packaged WebKitGTK injected bundle."
+            exit 1
+          fi
+
           wget -q "${APPIMAGETOOL_URL}" -O appimage-work/appimagetool-x86_64.AppImage
           chmod +x appimage-work/appimagetool-x86_64.AppImage
 

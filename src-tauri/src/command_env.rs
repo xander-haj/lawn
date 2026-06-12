@@ -1,6 +1,7 @@
 // This module normalizes child process environment for commands launched from the app.
 // Packaged macOS apps inherit a minimal Finder PATH, so build tools installed by
 // Homebrew or MacPorts need to be surfaced explicitly before command lookup.
+use crate::runtime_info::is_flatpak_runtime;
 use std::env;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -46,6 +47,8 @@ pub(crate) fn open_path(path: &Path, label: &str) -> Result<(), String> {
     Err(format!("Could not open {label}: {}", errors.join("; ")))
 }
 
+// Builds the platform-specific opener command list for a file or folder path.
+// The path parameter is passed as an argument, and the returned commands are tried in order.
 fn open_path_attempts(path: &Path) -> Vec<Command> {
     if cfg!(target_os = "windows") {
         let mut command = platform_command("explorer");
@@ -59,13 +62,25 @@ fn open_path_attempts(path: &Path) -> Vec<Command> {
         return vec![command];
     }
 
+    let mut attempts = Vec::new();
+
+    // Flatpak file-manager launches should happen on the host so selected home or SD-card
+    // folders open in the user's desktop session instead of inside the launcher sandbox.
+    if is_flatpak_runtime() {
+        let mut host_open = platform_command("flatpak-spawn");
+        host_open.arg("--host").arg("xdg-open").arg(path);
+        attempts.push(host_open);
+    }
+
     let mut xdg_open = platform_command("xdg-open");
     xdg_open.arg(path);
+    attempts.push(xdg_open);
 
     let mut gio_open = platform_command("gio");
     gio_open.arg("open").arg(path);
+    attempts.push(gio_open);
 
-    vec![xdg_open, gio_open]
+    attempts
 }
 
 // Resolves bare macOS tool names through the augmented PATH before std::process performs lookup.

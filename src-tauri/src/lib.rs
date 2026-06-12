@@ -7,6 +7,7 @@ mod command_env;
 mod discovery;
 mod env_checks;
 mod external_links;
+mod file_dialogs;
 mod feature_asset_catalog;
 mod feature_asset_paths;
 mod feature_asset_store;
@@ -99,7 +100,7 @@ pub fn run() {
             launcher_updates::install_launcher_update,
             env_checks::check_environment,
             actions::launch_game,
-            actions::choose_scan_root,
+            file_dialogs::choose_scan_root,
             actions::clone_project,
             actions::clone_custom_project,
             actions::open_project_folder,

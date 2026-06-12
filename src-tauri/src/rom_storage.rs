@@ -1,12 +1,12 @@
 // This module owns launcher-managed ROM storage and the copy step that seeds
 // newly cloned projects with the user's legally supplied zelda3.sfc file.
 use crate::command_env::open_path;
+use crate::file_dialogs::pick_rom_file;
 use crate::models::{ActionResult, RomStatus};
 use crate::paths::display_path;
 use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::Manager;
-use tauri_plugin_dialog::DialogExt;
 
 // Keep ROMs under an app-owned subfolder so user uploads stay outside source repos until copied.
 const ROM_STORAGE_DIR: &str = "roms";
@@ -147,30 +147,6 @@ fn rom_target_dir(project_path: &Path) -> PathBuf {
     }
 
     project_path.to_path_buf()
-}
-
-// Uses the non-blocking Tauri dialog API so the app event loop stays responsive while the picker is open.
-async fn pick_rom_file(app: &tauri::AppHandle) -> Result<Option<PathBuf>, String> {
-    let (sender, mut receiver) = tauri::async_runtime::channel(1);
-
-    app.dialog()
-        .file()
-        .add_filter("SNES ROM", &["sfc"])
-        .pick_file(move |file| {
-            tauri::async_runtime::spawn(async move {
-                let _ = sender.send(file).await;
-            });
-        });
-
-    receiver
-        .recv()
-        .await
-        .ok_or_else(|| "ROM picker closed before returning a result.".to_string())?
-        .map(|path| {
-            path.into_path()
-                .map_err(|error| format!("Could not read selected ROM path: {error}"))
-        })
-        .transpose()
 }
 
 // Builds the serializable frontend status from the canonical storage location.
