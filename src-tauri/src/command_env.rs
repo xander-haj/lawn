@@ -72,15 +72,45 @@ fn open_path_attempts(path: &Path) -> Vec<Command> {
         attempts.push(host_open);
     }
 
-    let mut xdg_open = platform_command("xdg-open");
+    let mut xdg_open = linux_host_opener_command("xdg-open");
     xdg_open.arg(path);
     attempts.push(xdg_open);
 
-    let mut gio_open = platform_command("gio");
+    let mut gio_open = linux_host_opener_command("gio");
     gio_open.arg("open").arg(path);
     attempts.push(gio_open);
 
     attempts
+}
+
+// Builds Linux file-manager opener commands against the host environment instead of the
+// AppImage runtime. The program parameter is a trusted opener name, and the returned
+// command avoids inherited AppImage library paths that can break KDE/Dolphin on Steam Deck.
+fn linux_host_opener_command(program: &str) -> Command {
+    let mut command = Command::new(
+        linux_host_program_path(program).unwrap_or_else(|| OsString::from(program)),
+    );
+    sanitize_appimage_child_env(&mut command);
+    command
+}
+
+// Finds common host locations before falling back to PATH lookup. AppImage prepends
+// $APPDIR/usr/bin to PATH, so absolute host paths avoid accidentally launching a
+// bundled helper with host desktop arguments.
+fn linux_host_program_path(program: &str) -> Option<OsString> {
+    ["/usr/bin", "/bin", "/usr/local/bin"]
+        .iter()
+        .map(|directory| Path::new(directory).join(program))
+        .find(|candidate| candidate.is_file())
+        .map(|path| path.into_os_string())
+}
+
+// Removes AppImage loader variables from host opener children. The launcher itself needs
+// these variables for bundled WebKitGTK, but host file managers should load host libraries.
+fn sanitize_appimage_child_env(command: &mut Command) {
+    for key in ["APPDIR", "APPIMAGE", "ARGV0", "OWD", "LD_LIBRARY_PATH"] {
+        command.env_remove(key);
+    }
 }
 
 // Resolves bare macOS tool names through the augmented PATH before std::process performs lookup.

@@ -1,6 +1,6 @@
 // This module owns native file and folder selection for user-supplied launcher paths.
-// Linux Flatpak builds compile the dialog plugin with the XDG portal backend so these
-// pickers can ask Steam Deck users for sandbox-safe file and directory access.
+// Linux Flatpak builds set GTK_USE_PORTAL before Tauri starts so GTK-backed dialogs
+// can ask Steam Deck users for sandbox-safe file and directory access.
 use crate::paths::display_path;
 use std::path::PathBuf;
 use tauri_plugin_dialog::DialogExt;

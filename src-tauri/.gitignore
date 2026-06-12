@@ -1,0 +1,5 @@
+# Ignore Rust build outputs created below src-tauri.
+/target/
+
+# Ignore generated Tauri schemas and capability snapshots.
+/gen/
